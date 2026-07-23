@@ -1,0 +1,49 @@
+name: text-to-3d
+
+# The resident mesh engine. Model load is the large fixed cost of a run, so a
+# process that stays up pays it once instead of once per asset.
+#
+#   docker compose up -d engine
+#   python3 layers/pipeline/src/pipeline.py --prompt "..." --runner server
+#
+# The image stage is not here: it runs on the separate comfyui-strix-docker
+# stack, which owns its own compose file and its own ROCm pin.
+
+services:
+  engine:
+    build:
+      context: ./layers/image2mesh
+      dockerfile: docker/Dockerfile
+    image: text-to-3d/engine:vulkan
+    container_name: t2m-engine
+    restart: unless-stopped
+    # Vulkan needs the render node only. No /dev/kfd, no ROCm, not privileged.
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${RENDER_GID:-990}"
+      - "${VIDEO_GID:-44}"
+    environment:
+      # Weights belong in GTT (the 128 GB unified pool), not the small BIOS
+      # VRAM carve-out. ggml's Vulkan allocator reads this as a presence check.
+      - GGML_VK_PREFER_HOST_MEMORY=1
+    volumes:
+      - ${TRELLIS_MODELS:-/home/hec/models/gguf/trellis2}:/models:ro
+      - ${OUT_DIR:-./out}:/work
+    ports:
+      - "${ENGINE_PORT:-8189}:8189"
+    command:
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8189"
+      - --models
+      - /models
+      - --require-gpu
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8189/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 40
+      start_period: 600s
