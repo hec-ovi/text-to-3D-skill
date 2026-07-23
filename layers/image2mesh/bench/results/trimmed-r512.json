@@ -1,0 +1,57 @@
+{
+  "tag": "trimmed",
+  "dockerImage": "text-to-3d/engine:vulkan",
+  "resolution": 512,
+  "seed": 42,
+  "exitCode": 0,
+  "wallSeconds": 222.94,
+  "engineSeconds": 222.3,
+  "phases": [
+    {
+      "phase": "startup + first model load",
+      "startSeconds": 0.0,
+      "seconds": 0.28
+    },
+    {
+      "phase": "[1/6] preprocess /in/bench-subject.png (BiRefNet bg removal, 512)",
+      "startSeconds": 0.28,
+      "seconds": 16.83
+    },
+    {
+      "phase": "[2/6] DINOv3 conditioning",
+      "startSeconds": 17.11,
+      "seconds": 0.36
+    },
+    {
+      "phase": "[3/6] sparse-structure flow + decode",
+      "startSeconds": 17.47,
+      "seconds": 44.75
+    },
+    {
+      "phase": "[4/7] shape SLAT flow (512)",
+      "startSeconds": 62.22,
+      "seconds": 44.15
+    },
+    {
+      "phase": "[5/7] FlexiDualGrid shape decode -> mesh @res512",
+      "startSeconds": 106.37,
+      "seconds": 15.13
+    },
+    {
+      "phase": "[6/7] texture SLAT flow + PBR decode",
+      "startSeconds": 121.5,
+      "seconds": 39.83
+    },
+    {
+      "phase": "[7/7] write /out/trimmed-r512.glb",
+      "startSeconds": 161.33,
+      "seconds": 61.27
+    }
+  ],
+  "peakGttMiB": 3682,
+  "peakVramMiB": 1469,
+  "gttDeltaMiB": 3614,
+  "vramDeltaMiB": 812,
+  "glbBytes": 5204700,
+  "triangles": 138524
+}

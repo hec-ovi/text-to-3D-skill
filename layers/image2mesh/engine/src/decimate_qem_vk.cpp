@@ -16,6 +16,7 @@
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -280,6 +281,23 @@ void mem_barrier(VkAccessFlags src, VkAccessFlags dst, VkPipelineStageFlags ss, 
 // and V/F in place. Returns false on any Vulkan error (caller then aborts to the CPU path).
 bool simplify_round_vk(std::vector<float>& verts, int& V, std::vector<int32_t>& faces, int& F,
                        float lam_len, float lam_skinny, float thresh) {
+    // Per-round attribution, off unless T2M_DECIMATE_TIMING=1. The GPU only runs
+    // the four kernels; adjacency, edge building and compaction are host work,
+    // and on a mesh of several million faces that split is not obvious from the
+    // outside.
+    static const bool timing = [] {
+        const char* v = getenv("T2M_DECIMATE_TIMING");
+        return v && *v && *v != '0';
+    }();
+    using clk = std::chrono::steady_clock;
+    auto mark = clk::now();
+    double ms_csr = 0, ms_edges = 0, ms_gpu = 0, ms_compact = 0;
+    auto lap = [&](double& into) {
+        auto now = clk::now();
+        into = std::chrono::duration<double, std::milli>(now - mark).count();
+        mark = now;
+    };
+
     // --- vertex -> incident face adjacency (CSR), exactly as decimate_qem.cpp ---
     std::vector<int32_t> off(V + 1, 0);
     for (int f = 0; f < F; ++f) for (int k = 0; k < 3; ++k) off[faces[3*f+k] + 1]++;
@@ -287,6 +305,8 @@ bool simplify_round_vk(std::vector<float>& verts, int& V, std::vector<int32_t>& 
     std::vector<int32_t> v2f(off[V]);
     { std::vector<int32_t> cur(off.begin(), off.end() - 1);
       for (int f = 0; f < F; ++f) for (int k = 0; k < 3; ++k) { int v = faces[3*f+k]; v2f[cur[v]++] = f; } }
+
+    if (timing) lap(ms_csr);
 
     // --- unique undirected edges (e0<e1) + boundary vertices (edge used by a single face) ---
     std::unordered_map<uint64_t,int> ecount;
@@ -305,6 +325,7 @@ bool simplify_round_vk(std::vector<float>& verts, int& V, std::vector<int32_t>& 
         edges.push_back(a); edges.push_back(b);
     }
     const int E = (int)edges.size() / 2;
+    if (timing) lap(ms_edges);
 
     // --- device buffer sizes for this round ---
     const VkDeviceSize szVerts = (VkDeviceSize)V * 3 * 4;
@@ -434,6 +455,7 @@ bool simplify_round_vk(std::vector<float>& verts, int& V, std::vector<int32_t>& 
     std::vector<int32_t> vdead((size_t)V), fdead((size_t)F);
     std::memcpy(vdead.data(), sp + dlVdead, (size_t)szVdead);
     std::memcpy(fdead.data(), sp + dlFdead, (size_t)szFdead);
+    if (timing) lap(ms_gpu);
 
     // --- compact vertices (drop collapsed) + faces (drop deleted/degenerate) -- CPU tail verbatim ---
     std::vector<int> vmap((size_t)V, -1); int nV = 0;
@@ -447,8 +469,16 @@ bool simplify_round_vk(std::vector<float>& verts, int& V, std::vector<int32_t>& 
         if (a < 0 || b < 0 || c < 0 || a == b || b == c || a == c) continue;
         nf.push_back(a); nf.push_back(b); nf.push_back(c);
     }
+    const int inF = F;
     V = nV; F = (int)nf.size() / 3;
     verts.swap(nv); faces.swap(nf);
+    if (timing) {
+        lap(ms_compact);
+        fprintf(stderr,
+                "[decimate_vk] round F %d->%d E=%d | csr %.0fms edges %.0fms gpu+io %.0fms "
+                "compact %.0fms\n",
+                inF, F, E, ms_csr, ms_edges, ms_gpu, ms_compact);
+    }
     return true;
 }
 
