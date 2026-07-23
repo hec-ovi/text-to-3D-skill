@@ -27,7 +27,7 @@ FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libvulkan1 mesa-vulkan-drivers vulkan-tools ca-certificates \
+      libvulkan1 mesa-vulkan-drivers vulkan-tools libgomp1 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Strix Halo's dedicated VRAM is a small BIOS carve-out; the 128 GB of unified

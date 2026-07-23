@@ -18,6 +18,7 @@ tmp/
 *.jpg
 *.webp
 !docs/assets/*.png
+!layers/image2mesh/fixtures/*.png
 !docs/assets/*.webp
 
 # model weights (live in /home/hec/models, never in-tree)
@@ -30,3 +31,6 @@ models/
 .venv/
 __pycache__/
 node_modules/
+
+# bench artifacts (results/*.json are committed, work/ is not)
+layers/image2mesh/bench/work/

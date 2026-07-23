@@ -16,6 +16,13 @@
 #include <stdexcept>
 #include <vector>
 
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 namespace {
 // plain fseek()'s offset is a 32-bit `long` under MSVC even in 64-bit builds,
 // so it silently truncates offsets past 2GB -- fatal for the flow GGUFs here,
@@ -117,27 +124,68 @@ Model Model::load(const std::string& path, int gpu) {
     m.buffer = ggml_backend_alloc_ctx_tensors(meta, m.backend);
     if (!m.buffer) throw std::runtime_error("failed to allocate tensor buffer for " + path);
 
-    // stream weights from disk into the backend buffer
-    FILE* f = fopen(path.c_str(), "rb");
-    if (!f) throw std::runtime_error("cannot reopen gguf: " + path);
     const size_t data_off = gguf_get_data_offset(m.gguf);
-    std::vector<uint8_t> staging;
     const int64_t n = gguf_get_n_tensors(m.gguf);
-    for (int64_t i = 0; i < n; ++i) {
-        const char* name = gguf_get_tensor_name(m.gguf, i);
-        ggml_tensor* t = ggml_get_tensor(meta, name);
-        const size_t nbytes = ggml_nbytes(t);
-        const size_t off = data_off + gguf_get_tensor_offset(m.gguf, i);
-        staging.resize(nbytes);
-        if (trellis_fseek64(f, (int64_t)off, SEEK_SET) != 0 ||
-            fread(staging.data(), 1, nbytes, f) != nbytes) {
-            fclose(f);
-            throw std::runtime_error(std::string("short read for tensor ") + name);
+
+    // Weight upload. The portable path reads each tensor into a heap buffer and
+    // then copies that into the backend buffer, so every byte is handled twice:
+    // ~11 GB of double-handling for a res-512 run, which the models are loaded
+    // and freed stage by stage. Mapping the file instead hands ggml a pointer
+    // straight into the page cache and leaves exactly one copy, the one that has
+    // to happen. On a UMA part that copy lands in GTT, which is where the
+    // weights want to be anyway.
+    bool uploaded = false;
+#ifndef _WIN32
+    if (int fd = open(path.c_str(), O_RDONLY); fd >= 0) {
+        struct stat st {};
+        if (fstat(fd, &st) == 0 && st.st_size > 0) {
+            const size_t map_size = (size_t) st.st_size;
+            void* map = mmap(nullptr, map_size, PROT_READ, MAP_PRIVATE, fd, 0);
+            if (map != MAP_FAILED) {
+                // Tensors are read front to back, once each.
+                madvise(map, map_size, MADV_SEQUENTIAL);
+                madvise(map, map_size, MADV_WILLNEED);
+                const uint8_t* base = (const uint8_t*) map;
+                bool ok = true;
+                for (int64_t i = 0; i < n; ++i) {
+                    const char* name = gguf_get_tensor_name(m.gguf, i);
+                    ggml_tensor* t = ggml_get_tensor(meta, name);
+                    const size_t nbytes = ggml_nbytes(t);
+                    const size_t off = data_off + gguf_get_tensor_offset(m.gguf, i);
+                    if (off + nbytes > map_size) { ok = false; break; }
+                    ggml_backend_tensor_set(t, base + off, 0, nbytes);
+                    m.tensors[name] = t;
+                }
+                munmap(map, map_size);
+                uploaded = ok;
+            }
         }
-        ggml_backend_tensor_set(t, staging.data(), 0, nbytes);
-        m.tensors[name] = t;
+        close(fd);
     }
-    fclose(f);
+#endif
+
+    if (!uploaded) {
+        // Fallback: Windows, or a file that could not be mapped.
+        m.tensors.clear();
+        FILE* f = fopen(path.c_str(), "rb");
+        if (!f) throw std::runtime_error("cannot reopen gguf: " + path);
+        std::vector<uint8_t> staging;
+        for (int64_t i = 0; i < n; ++i) {
+            const char* name = gguf_get_tensor_name(m.gguf, i);
+            ggml_tensor* t = ggml_get_tensor(meta, name);
+            const size_t nbytes = ggml_nbytes(t);
+            const size_t off = data_off + gguf_get_tensor_offset(m.gguf, i);
+            staging.resize(nbytes);
+            if (trellis_fseek64(f, (int64_t) off, SEEK_SET) != 0 ||
+                fread(staging.data(), 1, nbytes, f) != nbytes) {
+                fclose(f);
+                throw std::runtime_error(std::string("short read for tensor ") + name);
+            }
+            ggml_backend_tensor_set(t, staging.data(), 0, nbytes);
+            m.tensors[name] = t;
+        }
+        fclose(f);
+    }
     return m;
 }
 
