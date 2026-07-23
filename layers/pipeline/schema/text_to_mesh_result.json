@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pipeline/text_to_mesh_result.json",
+  "title": "TextToMeshResult",
+  "description": "Params out for the whole skill. Both stage envelopes are carried through unchanged.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "glb", "stages", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "prompt": { "type": "string" },
+    "glb": {
+      "type": "object",
+      "description": "Copy of the image2mesh result's glb reference, so callers need read only this envelope.",
+      "additionalProperties": false,
+      "required": ["uri", "mediaType", "byteSize", "checksum"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "const": "model/gltf-binary" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+        }
+      }
+    },
+    "triangles": { "type": "integer", "minimum": 1 },
+    "stages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text2image", "image2mesh"],
+      "properties": {
+        "text2image": { "type": "object", "description": "The ImageResult envelope, verbatim." },
+        "image2mesh": { "type": "object", "description": "The MeshResult envelope, verbatim." }
+      }
+    },
+    "timings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "imageMs": { "type": "integer", "minimum": 0 },
+        "meshMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  }
+}

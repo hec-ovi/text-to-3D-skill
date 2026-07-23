@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pipeline/error.json",
+  "title": "PipelineError",
+  "description": "Closed error set for the pipeline layer. Stage failures are wrapped, never rethrown raw.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "message"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_REQUEST",
+        "TEXT2IMAGE_FAILED",
+        "IMAGE2MESH_FAILED",
+        "CONTRACT_VIOLATION",
+        "TIMEOUT"
+      ]
+    },
+    "message": { "type": "string" },
+    "stage": { "type": "string", "enum": ["text2image", "image2mesh"] },
+    "cause": {
+      "type": "object",
+      "description": "The failing layer's own error envelope, unmodified.",
+      "additionalProperties": true
+    },
+    "detail": { "type": "string" }
+  }
+}

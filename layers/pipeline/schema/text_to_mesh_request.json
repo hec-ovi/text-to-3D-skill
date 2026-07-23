@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pipeline/text_to_mesh_request.json",
+  "title": "TextToMeshRequest",
+  "description": "Params in for the whole skill: a sentence describing one object.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["prompt"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "prompt": { "type": "string", "minLength": 1, "description": "What the object is." },
+    "seed": { "type": "integer", "minimum": 0, "description": "Omit for a seed derived from the prompt. Fixes the image, which fixes the mesh." },
+    "resolution": { "type": "integer", "enum": [512, 1024, 1536], "default": 512 },
+    "texture": { "type": "boolean", "default": true },
+    "steps": { "type": "integer", "minimum": 1, "maximum": 50, "default": 4, "description": "Diffusion steps for the intermediate image." },
+    "imageSize": { "type": "integer", "minimum": 256, "maximum": 2048, "multipleOf": 16, "default": 1024, "description": "Square. TRELLIS crops to the subject anyway." },
+    "backgroundRemoval": { "type": "string", "enum": ["auto", "threshold", "birefnet"], "default": "auto" },
+    "outDir": { "type": "string", "description": "Where the PNG and GLB land. Defaults to the working directory." },
+    "keepImage": { "type": "boolean", "default": true, "description": "false deletes the intermediate PNG once the mesh is out." },
+    "comfyEndpoint": { "type": "string", "default": "http://127.0.0.1:8188" },
+    "runner": { "type": "string", "enum": ["docker", "server", "binary"], "default": "docker" },
+    "engineEndpoint": { "type": "string", "default": "http://127.0.0.1:8189" },
+    "enginePath": { "type": "string", "description": "Path to a locally built t2m-cli. Required when runner is binary." },
+    "modelsDir": { "type": "string", "default": "/home/hec/models/gguf/trellis2" },
+    "timeoutSeconds": { "type": "integer", "minimum": 60, "maximum": 7200, "default": 2400 }
+  }
+}
