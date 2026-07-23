@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "image2mesh/mesh_request.json",
+  "title": "MeshRequest",
+  "description": "Params in for the image2mesh layer: one image by reference plus reconstruction settings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "image": {
+      "type": "object",
+      "description": "Reference to a PNG on the shared filesystem. Shape-compatible with text2image's ImageResult.image.",
+      "additionalProperties": true,
+      "required": ["uri", "mediaType", "checksum"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image/png", "image/jpeg", "image/webp"] },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+        }
+      }
+    },
+    "resolution": {
+      "type": "integer",
+      "enum": [512, 1024, 1536],
+      "default": 512,
+      "description": "Geometry voxel resolution. 512 runs a single pass; 1024 and 1536 add a cascade and cost roughly twice the time and memory."
+    },
+    "texture": { "type": "boolean", "default": true, "description": "false emits geometry only." },
+    "textureResolution": { "type": "integer", "enum": [512, 1024], "description": "PBR volume resolution. Omit for the engine's auto choice." },
+    "atlasPx": { "type": "integer", "enum": [512, 1024, 2048, 4096], "description": "UV atlas size. Omit for 2048 at res 1024, 1024 at res 512." },
+    "boxUv": { "type": "boolean", "default": false, "description": "Voxel-native box projection instead of an xatlas unwrap. Faster, worse seams." },
+    "decimateFaces": { "type": "integer", "minimum": 0, "description": "Target face count. 0 keeps the full mesh. Omit for 300K at res 1024, 150K at res 512." },
+    "backgroundRemoval": {
+      "type": "string",
+      "enum": ["auto", "threshold", "birefnet"],
+      "default": "auto",
+      "description": "auto keeps existing alpha, else uses BiRefNet when its weights are present. threshold cuts specular highlights into holes."
+    },
+    "seed": { "type": "integer", "minimum": 0, "default": 42 },
+    "maxTokens": { "type": "integer", "minimum": 1024, "description": "High-resolution token budget. Omit for the engine default of 49152." },
+    "band": { "type": "integer", "minimum": 1, "maximum": 4, "description": "Narrow-band remesh width. 2 suppresses the doubled inner skin on thin-walled subjects." },
+    "runner": {
+      "type": "string",
+      "enum": ["docker", "server", "binary"],
+      "default": "docker",
+      "description": "docker runs a one-shot container. server posts to an already-running t2m-server, which skips model load. binary calls a locally built t2m-cli."
+    },
+    "dockerImage": { "type": "string", "default": "text-to-3d/engine:vulkan" },
+    "endpoint": { "type": "string", "default": "http://127.0.0.1:8189", "description": "Used when runner is server." },
+    "binaryPath": { "type": "string", "description": "Used when runner is binary." },
+    "modelsDir": { "type": "string", "default": "/home/hec/models/gguf/trellis2" },
+    "outDir": { "type": "string" },
+    "timeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 7200, "default": 1800 }
+  }
+}

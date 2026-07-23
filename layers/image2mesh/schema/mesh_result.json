@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "image2mesh/mesh_result.json",
+  "title": "MeshResult",
+  "description": "Params out for the image2mesh layer. The GLB crosses the boundary by reference and has been structurally validated before this envelope is emitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "glb", "geometry", "engine", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "glb": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "mediaType", "byteSize", "checksum"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "const": "model/gltf-binary" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "description": "Read back out of the emitted GLB, not predicted from the request.",
+      "additionalProperties": false,
+      "required": ["meshes", "primitives", "triangles"],
+      "properties": {
+        "meshes": { "type": "integer", "minimum": 1 },
+        "primitives": { "type": "integer", "minimum": 1 },
+        "triangles": { "type": "integer", "minimum": 1 },
+        "materials": { "type": "integer", "minimum": 0 },
+        "images": { "type": "integer", "minimum": 0 },
+        "hasUv": { "type": "boolean" },
+        "hasNormals": { "type": "boolean" },
+        "extensionsUsed": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "runner"],
+      "properties": {
+        "backend": { "type": "string", "const": "vulkan" },
+        "runner": { "type": "string", "enum": ["docker", "server", "binary"] },
+        "device": { "type": "string" },
+        "resolution": { "type": "integer" },
+        "seed": { "type": "integer" }
+      }
+    },
+    "elapsedMs": { "type": "integer", "minimum": 0 },
+    "modelLoadMs": { "type": "integer", "minimum": 0, "description": "Absent for the server runner, which pays it once at startup." }
+  }
+}
