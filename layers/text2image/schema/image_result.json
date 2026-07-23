@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "text2image/image_result.json",
+  "title": "ImageResult",
+  "description": "Params out for the text2image layer. The PNG crosses the boundary by reference, never as bare bytes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "image", "seed", "model", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "mediaType", "byteSize", "checksum", "width", "height"],
+      "properties": {
+        "uri": { "type": "string", "description": "Absolute path or file:// URI of the PNG on the shared filesystem." },
+        "mediaType": { "type": "string", "const": "image/png" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+        },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "seed": { "type": "integer", "minimum": 0 },
+    "promptSent": { "type": "string", "description": "The exact positive prompt handed to the sampler, after framing." },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unet", "clip", "vae"],
+      "properties": {
+        "unet": { "type": "string" },
+        "clip": { "type": "string" },
+        "vae":  { "type": "string" }
+      }
+    },
+    "steps": { "type": "integer", "minimum": 1 },
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  }
+}

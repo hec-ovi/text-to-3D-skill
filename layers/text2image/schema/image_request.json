@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "text2image/image_request.json",
+  "title": "ImageRequest",
+  "description": "Params in for the text2image layer: one subject description plus sampler settings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["prompt"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "prompt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Subject description. The layer wraps it in a single-object framing template unless rawPrompt is true."
+    },
+    "rawPrompt": {
+      "type": "boolean",
+      "default": false,
+      "description": "Send prompt to the sampler verbatim, with no framing template."
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "description": "Omit for a deterministic seed derived from the prompt."
+    },
+    "width":  { "type": "integer", "minimum": 256, "maximum": 2048, "multipleOf": 16, "default": 1024 },
+    "height": { "type": "integer", "minimum": 256, "maximum": 2048, "multipleOf": 16, "default": 1024 },
+    "steps":  { "type": "integer", "minimum": 1, "maximum": 50, "default": 4 },
+    "endpoint": {
+      "type": "string",
+      "format": "uri",
+      "default": "http://127.0.0.1:8188",
+      "description": "ComfyUI base URL."
+    },
+    "timeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 3600, "default": 600 },
+    "outDir": {
+      "type": "string",
+      "description": "Directory the PNG is written to. The result envelope references it by path."
+    }
+  }
+}

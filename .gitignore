@@ -1,0 +1,32 @@
+# local idea notes (kept out of the published repo)
+docs/IDEA.md
+
+# build artifacts
+build/
+dist/
+*.o
+*.a
+*.so
+*.spv
+compile_commands.json
+
+# runtime data
+out/
+tmp/
+*.glb
+*.png
+*.jpg
+*.webp
+!docs/assets/*.png
+!docs/assets/*.webp
+
+# model weights (live in /home/hec/models, never in-tree)
+*.gguf
+*.safetensors
+models/
+
+# env / secrets
+.env
+.venv/
+__pycache__/
+node_modules/

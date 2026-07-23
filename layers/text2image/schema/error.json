@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "text2image/error.json",
+  "title": "Text2ImageError",
+  "description": "Closed error set for the text2image layer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "message"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_REQUEST",
+        "BACKEND_UNREACHABLE",
+        "GRAPH_REJECTED",
+        "MODEL_MISSING",
+        "RENDER_FAILED",
+        "TIMEOUT",
+        "OUTPUT_WRITE_FAILED"
+      ]
+    },
+    "message": { "type": "string" },
+    "detail": { "type": "string" }
+  }
+}

@@ -1,0 +1,4 @@
+[submodule "layers/image2mesh/engine/thirdparty/ggml"]
+	path = layers/image2mesh/engine/thirdparty/ggml
+	url = https://github.com/pwilkin/ggml
+	branch = trellis-patches

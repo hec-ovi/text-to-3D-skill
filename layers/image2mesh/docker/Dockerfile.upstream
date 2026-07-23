@@ -1,0 +1,51 @@
+# Baseline image: pinned upstream trellis.cpp, Vulkan backend, nothing of ours.
+#
+# This exists only to produce the "before" numbers the trimmed engine is measured
+# against. It is not the image the skill runs. See ../bench/README.md.
+#
+#   docker build -f Dockerfile.upstream -t text-to-3d/engine:baseline .
+
+# ---------- build ----------------------------------------------------------
+FROM ubuntu:26.04 AS build
+
+ARG TRELLIS_COMMIT=101007fb8f4b5b032a2fb81d535e1c813438401e
+ARG GGML_COMMIT=f33ab068ddc95aa5df86af65a9c29d396bad3bb5
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake ninja-build git ca-certificates pkg-config \
+      libvulkan-dev glslc glslang-tools spirv-tools spirv-headers \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git clone https://github.com/pwilkin/trellis.cpp . \
+ && git checkout "${TRELLIS_COMMIT}" \
+ && git submodule update --init --recursive \
+ && git -C thirdparty/ggml fetch origin "${GGML_COMMIT}" \
+ && git -C thirdparty/ggml checkout "${GGML_COMMIT}"
+
+# Vulkan only. CUDA/HIP are never configured, so their sources are not compiled.
+RUN cmake -B build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGGML_VULKAN=ON \
+      -DGGML_CUDA=OFF \
+      -DGGML_HIP=OFF \
+ && cmake --build build -j"$(nproc)" --target trellis-cli
+
+# ---------- runtime --------------------------------------------------------
+FROM ubuntu:26.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libvulkan1 mesa-vulkan-drivers vulkan-tools ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Strix Halo: weights belong in GTT (the 128 GB unified pool), not the small
+# BIOS VRAM carve-out. ggml's Vulkan allocator treats this as a presence check.
+ENV GGML_VK_PREFER_HOST_MEMORY=1
+
+COPY --from=build /src/build/trellis-cli /opt/trellis/
+COPY --from=build /src/build/*.so* /opt/trellis/
+ENV LD_LIBRARY_PATH=/opt/trellis
+WORKDIR /work
+ENTRYPOINT ["/opt/trellis/trellis-cli"]
