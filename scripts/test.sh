@@ -14,7 +14,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LAYERS=("text2image" "image2mesh" "pipeline" "rig" "preview")
+LAYERS=("text2image" "image2mesh" "pipeline" "rig" "mcp" "preview")
 [ $# -gt 0 ] && LAYERS=("$@")
 
 if command -v uvx >/dev/null 2>&1; then
@@ -43,5 +43,13 @@ for layer in "${LAYERS[@]}"; do
   fi
   echo
 done
+
+# The skill and the plugin manifests are part of the product, so they get
+# checked with everything else rather than by hand before a release.
+if [ $# -eq 0 ]; then
+  echo "== skill =="
+  bash "${ROOT}/scripts/check-skill.sh" || failed=1
+  echo
+fi
 
 exit $failed

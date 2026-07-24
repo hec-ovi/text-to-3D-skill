@@ -1,0 +1,5 @@
+{
+  "name": "text-to-3d",
+  "description": "Text to a rigged, low-poly GLB, fully local: FLUX.2 klein, a Vulkan-only TRELLIS.2 engine, Blender headless for the skeleton, a turntable viewer and an MCP server that hands back ids and preview URLs.",
+  "version": "0.2.0"
+}

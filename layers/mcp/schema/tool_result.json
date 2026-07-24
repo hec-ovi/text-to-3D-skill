@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp/tool_result.json",
+  "title": "ToolResult",
+  "description": "Params out for every tool this server exposes: an MCP CallToolResult carrying a handle, never bytes. `content` mirrors `structuredContent` as text because client support for structured output is uneven, and adds a resource_link when the result names a file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["content"],
+  "properties": {
+    "content": {
+      "type": "array",
+      "description": "At least one text block holding the JSON payload, optionally followed by a resource_link to the file on disk. Never an image or blob: a tool result is model context, and a GLB is megabytes.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["text", "resource_link"] },
+          "text": { "type": "string" },
+          "uri": { "type": "string" },
+          "name": { "type": "string" },
+          "mimeType": { "type": "string" }
+        }
+      }
+    },
+    "structuredContent": {
+      "type": "object",
+      "description": "The payload. Every asset-bearing tool includes id, path and previewUrl; a caller turns an id into a link with previewUrl and into bytes with the path.",
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "description": "Stable handle: the file stem folded to a URL-safe alphabet, the same id the preview layer serves under ?id=." },
+        "path": { "type": "string", "description": "Absolute path of the file on disk." },
+        "byteSize": { "type": "integer", "minimum": 0 },
+        "previewUrl": { "type": "string", "description": "Viewer URL for this asset." },
+        "triangles": { "type": "integer", "minimum": 0 },
+        "animations": { "type": "array", "items": { "type": "string" } },
+        "joints": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "isError": { "type": "boolean", "description": "true when the tool failed in a way the model should read and retry from, rather than a protocol error." }
+  }
+}

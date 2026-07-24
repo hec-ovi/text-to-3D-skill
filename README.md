@@ -42,6 +42,31 @@ The engine here is `trellis.cpp` trimmed to that one path. 207 MB of upstream ch
 - 20 GB of disk for the TRELLIS.2 GGUFs, plus Python 3.10+ for the drivers (standard library only, no pip install).
 - Blender 5.x if you want rigging. Anywhere on PATH, or pointed at by `$BLENDER`. Nothing else in the repo needs it.
 
+## Install it as a skill
+
+```
+/plugin marketplace add hec-ovi/text-to-3D-skill
+/plugin install text-to-3d@text-to-3d-skill
+/reload-plugins
+```
+
+Or clone it, which is what you want if you are going to run the pipeline rather than only read the skill:
+
+```bash
+git clone https://github.com/hec-ovi/text-to-3D-skill ~/.claude/skills/text-to-3d
+```
+
+The plugin route installs [`SKILL.md`](SKILL.md) alone: a capability table with ids (`generate`, `lowpoly`, `rig`, `preview`, `mcp`, `batch`) that an agent reads to decide what to run. The code, the weights and the container come from the clone.
+
+To drive it from another MCP client, [`.mcp.json`](.mcp.json) registers the stdio server this repo ships:
+
+```json
+{ "mcpServers": { "text-to-3d": { "command": "python3",
+  "args": ["layers/mcp/src/server.py", "--out-dir", "out"], "timeout": 900000 } } }
+```
+
+Six tools, every one returning an id, a path and a preview URL rather than bytes: `generate_model`, `generate_image`, `rig_model`, `list_models`, `get_preview`, `download_glb`. Why never bytes, and why there is no SDK: [`layers/mcp/README.md`](layers/mcp/README.md).
+
 ## Setup
 
 ```bash
@@ -113,7 +138,7 @@ The output GLB passes the Khronos glTF-Validator with 0 errors and 0 warnings (`
 
 ## Layout
 
-Five blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.
+Six blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.
 
 | Layer | Owns | Contract |
 | --- | --- | --- |
@@ -122,13 +147,14 @@ Five blackboxes. Each owns a folder, declares a contract, and is changed without
 | [`layers/pipeline`](layers/pipeline) | stage order, error wrapping | [CONTRACT.md](layers/pipeline/CONTRACT.md) |
 | [`layers/rig`](layers/rig) | skeletons, skinning, the clip set, prop sockets | [CONTRACT.md](layers/rig/CONTRACT.md) |
 | [`layers/preview`](layers/preview) | the three.js turntable and the server behind it | [CONTRACT.md](layers/preview/CONTRACT.md) |
+| [`layers/mcp`](layers/mcp) | the MCP tool surface over stdio | [CONTRACT.md](layers/mcp/CONTRACT.md) |
 
 Everything crossing a boundary is a schema-validated JSON envelope, and binary payloads cross by reference: path, media type, byte size, sha256. The mesh layer re-hashes the PNG it is handed, so a mismatch fails the run instead of silently reconstructing the wrong picture.
 
 ## Tests
 
 ```bash
-./scripts/test.sh          # all five layers, 109 tests
+./scripts/test.sh          # all six layers, 128 tests, plus the skill checks
 ```
 
 No GPU and no weights needed: the tests stand in only for ComfyUI, the engine binary and Blender, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that needs the GPU is skipped unless `T2M_RUN_GPU=1`, and the rig layer's five real-Blender tests skip themselves with a note when Blender is not installed.

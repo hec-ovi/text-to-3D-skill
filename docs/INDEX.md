@@ -11,7 +11,9 @@ Each layer is a blackbox. Open one folder, read its `CONTRACT.md` and `schema/`,
 | Stage order, what the CLI accepts, how failures are wrapped | [`layers/pipeline/`](../layers/pipeline/CONTRACT.md) | either stage's internals |
 | Skeletons, skinning weights, the walk cycle, prop sockets | [`layers/rig/`](../layers/rig/CONTRACT.md) | anything that generates meshes |
 | The viewer: controls, lighting, framing, rotation, the model list API | [`layers/preview/`](../layers/preview/CONTRACT.md) | anything that generates assets |
-| What an agent is told about this skill | [`SKILL.md`](../SKILL.md) | |
+| The MCP tools, their schemas, what a tool result carries | [`layers/mcp/`](../layers/mcp/CONTRACT.md) | the layers it fronts |
+| What an agent is told about this skill | [`SKILL.md`](../SKILL.md), then `scripts/sync-skill.sh` | the install copies, which are generated |
+| How the skill is packaged and installed | [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) | |
 | Fetching or verifying weights | [`scripts/fetch-models.sh`](../scripts/fetch-models.sh) | |
 | Performance claims and how they were measured | [`layers/image2mesh/bench/`](../layers/image2mesh/bench/README.md) | |
 
@@ -35,5 +37,6 @@ TextToMeshRequest -> [pipeline]
 - **pipeline** owns the order and the error wrapping, and imports from neither.
 - **rig** owns skeletons, skinning and clips, and takes any GLB, not only ones this repo made.
 - **preview** owns showing a GLB to a human, and reads a directory of files without knowing what made them.
+- **mcp** owns the protocol surface, runs the other layers as subprocesses, and imports none of them.
 
 `RigResult.glb` is shape-compatible with `MeshResult.glb` on purpose: a rigged asset is still just a GLB by reference, so the preview layer and any caller handle both the same way.

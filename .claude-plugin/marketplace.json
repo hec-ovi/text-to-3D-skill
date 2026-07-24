@@ -1,0 +1,25 @@
+{
+  "name": "text-to-3d-skill",
+  "owner": {
+    "name": "Hector Oviedo"
+  },
+  "metadata": {
+    "description": "Local text to rigged 3D asset on an AMD Strix Halo iGPU",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "text-to-3d",
+      "source": "./plugins/text-to-3d",
+      "description": "Turns a sentence into a GLB that drops into three.js, fully local on a Strix Halo iGPU: FLUX.2 klein for the reference image, a Vulkan-only TRELLIS.2 engine for the mesh, a face-count target for game-ready low poly, and Blender headless for a measured skeleton with idle, walk, run and jump. Ships a turntable viewer and an MCP server that returns ids and preview URLs rather than bytes.",
+      "version": "0.2.0",
+      "author": {
+        "name": "Hector Oviedo"
+      },
+      "homepage": "https://github.com/hec-ovi/text-to-3D-skill",
+      "repository": "https://github.com/hec-ovi/text-to-3D-skill",
+      "license": "MIT",
+      "keywords": ["3d", "gltf", "glb", "three-js", "trellis", "vulkan", "strix-halo", "text-to-3d", "auto-rigging", "low-poly", "blender", "mcp", "agent-skills", "local-first"]
+    }
+  ]
+}
