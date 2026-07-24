@@ -63,11 +63,16 @@ export function createViewer(container) {
   const loader = new GLTFLoader()
   const pivot = new THREE.Group()
   scene.add(pivot)
+  const clock = new THREE.Clock()
 
   let current = null
   let home = { position: camera.position.clone(), target: controls.target.clone() }
   let wireframe = false
   let disposed = false
+  let mixer = null
+  let clips = []
+  let action = null
+  let playing = true
 
   function resize() {
     const { clientWidth: w, clientHeight: h } = container
@@ -84,6 +89,13 @@ export function createViewer(container) {
 
   function disposeCurrent() {
     if (!current) return
+    if (mixer) {
+      mixer.stopAllAction()
+      mixer.uncacheRoot(current)
+    }
+    mixer = null
+    action = null
+    clips = []
     pivot.remove(current)
     current.traverse((node) => {
       if (!node.isMesh) return
@@ -149,10 +161,20 @@ export function createViewer(container) {
           current = gltf.scene
           current.traverse((node) => {
             if (node.isMesh) { node.castShadow = true; node.receiveShadow = true }
+            // A skinned mesh's bounding box is its bind pose and does not follow
+            // the animation, so it culls out of frame mid-clip without this.
+            if (node.isSkinnedMesh) node.frustumCulled = false
           })
           applyWireframe(current)
           pivot.add(current)
           frame(current)
+
+          clips = gltf.animations || []
+          if (clips.length) {
+            mixer = new THREE.AnimationMixer(current)
+            play(clips[0].name)
+          }
+
           let triangles = 0
           current.traverse((node) => {
             if (node.isMesh && node.geometry) {
@@ -160,12 +182,38 @@ export function createViewer(container) {
               triangles += index ? index.count / 3 : node.geometry.attributes.position.count / 3
             }
           })
-          resolve({ triangles: Math.round(triangles) })
+          resolve({
+            triangles: Math.round(triangles),
+            clips: clips.map((c) => ({ name: c.name, duration: Number(c.duration.toFixed(3)) })),
+          })
         },
         undefined,
         (error) => reject(error instanceof Error ? error : new Error(String(error))),
       )
     })
+  }
+
+  /** Cross-fade to the named clip. Unknown names are ignored, not thrown. */
+  function play(name) {
+    if (!mixer) return null
+    const clip = clips.find((c) => c.name === name)
+    if (!clip) return null
+    const next = mixer.clipAction(clip)
+    next.reset()
+    next.play()
+    if (action && action !== next) {
+      // A hard cut between a run and an idle reads as a glitch; a short fade
+      // reads as the character changing its mind.
+      action.crossFadeTo(next, 0.25, false)
+    }
+    action = next
+    action.paused = !playing
+    return clip.name
+  }
+
+  function setPlaying(on) {
+    playing = on
+    if (action) action.paused = !on
   }
 
   function setRotation({ enabled, speed }) {
@@ -189,7 +237,9 @@ export function createViewer(container) {
     globalThis.requestAnimationFrame(tick)
     // The image tab hides the stage; a hidden element has no size, and drawing
     // into it is pure waste on a laptop iGPU that is usually busy generating.
+    const delta = clock.getDelta()
     if (!container.clientWidth || !container.clientHeight) return
+    if (mixer) mixer.update(delta)
     controls.update()
     renderer.render(scene, camera)
   }
@@ -207,11 +257,16 @@ export function createViewer(container) {
       distance: controls.getDistance(),
       wireframe,
       hasModel: Boolean(current),
+      clips: clips.map((c) => c.name),
+      clip: action ? action.getClip().name : null,
+      playing,
     }
   }
 
   return {
     load,
+    play,
+    setPlaying,
     setRotation,
     setWireframe,
     resetView,

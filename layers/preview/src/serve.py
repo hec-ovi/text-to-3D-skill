@@ -157,7 +157,17 @@ def glb_stats(path):
             index = prim.get("indices", prim.get("attributes", {}).get("POSITION"))
             if index is not None and index < len(accessors):
                 triangles += accessors[index].get("count", 0) // 3
-    return {"triangles": triangles, "materials": len(gltf.get("materials", []))}
+
+    stats = {"triangles": triangles, "materials": len(gltf.get("materials", []))}
+    # A rigged asset is still just a GLB, but the page can offer its clips
+    # before anything is downloaded if the list says which ones are in there.
+    clips = [a.get("name", f"clip {i}") for i, a in enumerate(gltf.get("animations", []))]
+    if clips:
+        stats["animations"] = clips
+    skins = gltf.get("skins", [])
+    if skins:
+        stats["joints"] = len(skins[0].get("joints", []))
+    return stats
 
 
 def list_models(directory):

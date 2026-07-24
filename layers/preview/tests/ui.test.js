@@ -356,6 +356,85 @@ describe('model and image tabs', () => {
   })
 })
 
+describe('motion', () => {
+  const RIGGED = model('hero-rigged.glb', {
+    animations: ['idle', 'walk', 'run', 'jump'],
+    joints: 19,
+  })
+
+  test('a rigged model lists its clips and starts on the first', async () => {
+    serveModels([RIGGED])
+    const onClipChange = vi.fn()
+    const ui = mount({ onClipChange })
+    await ui.refresh()
+
+    const clips = screen.getAllByRole('radio')
+    expect(clips.map((c) => c.textContent)).toEqual(['idle', 'walk', 'run', 'jump'])
+    expect(clips[0].getAttribute('aria-checked')).toBe('true')
+    expect(ui.clip).toBe('idle')
+    expect(document.querySelector('#stats').textContent).toContain('19')
+    expect(onClipChange).not.toHaveBeenCalled()
+  })
+
+  test('picking a clip asks the viewer to play it', async () => {
+    const user = userEvent.setup()
+    serveModels([RIGGED])
+    const onClipChange = vi.fn()
+    const ui = mount({ onClipChange })
+    await ui.refresh()
+
+    await user.click(screen.getByRole('radio', { name: 'run' }))
+
+    expect(onClipChange).toHaveBeenCalledWith('run')
+    expect(ui.clip).toBe('run')
+    expect(screen.getByRole('radio', { name: 'run' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('radio', { name: 'idle' }).getAttribute('aria-checked')).toBe('false')
+  })
+
+  test('pause and play report to the viewer both ways', async () => {
+    const user = userEvent.setup()
+    serveModels([RIGGED])
+    const onPlayingChange = vi.fn()
+    const ui = mount({ onPlayingChange })
+    await ui.refresh()
+
+    const button = screen.getByRole('button', { name: 'Pause' })
+    await user.click(button)
+    expect(onPlayingChange).toHaveBeenLastCalledWith(false)
+    expect(ui.playing).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Play' }))
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true)
+    expect(ui.playing).toBe(true)
+  })
+
+  test('a model with no clips hides the motion panel', async () => {
+    serveModels([RIGGED, BELL])
+    const user = userEvent.setup()
+    const ui = mount()
+    await ui.refresh()
+    expect(document.querySelector('#motion').hidden).toBe(false)
+
+    await user.click(screen.getByRole('option', { name: /bell-r512\.glb/ }))
+
+    expect(document.querySelector('#motion').hidden).toBe(true)
+    expect(screen.queryAllByRole('radio')).toHaveLength(0)
+    expect(ui.clip).toBe(null)
+  })
+
+  test('the viewer overrides the list when the file disagrees', async () => {
+    serveModels([RIGGED])
+    const ui = mount()
+    await ui.refresh()
+
+    // What the renderer parsed out of the GLB wins: it is the thing that plays.
+    ui.showClips(['idle', 'walk'], 'walk')
+
+    expect(screen.getAllByRole('radio').map((c) => c.textContent)).toEqual(['idle', 'walk'])
+    expect(ui.clip).toBe('walk')
+  })
+})
+
 describe('pure helpers', () => {
   test('pickInitial prefers the requested id or name, then the newest', () => {
     expect(pickInitial([BELL, HELMET], 'helmet-r512')).toBe(HELMET)

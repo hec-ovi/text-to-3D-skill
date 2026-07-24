@@ -101,6 +101,14 @@ const LAYOUT = `
     <input id="filter" type="search" placeholder="Filter by name" aria-label="Filter models">
     <div class="model-list" id="model-list" role="listbox" aria-label="Models"></div>
     <p class="sidebar-note" id="sidebar-note" hidden></p>
+
+    <section class="motion" id="motion" hidden>
+      <div class="motion-head">
+        <h2>Motion</h2>
+        <button id="play-pause" type="button" aria-pressed="true">Pause</button>
+      </div>
+      <div class="clip-list" id="clip-list" role="radiogroup" aria-label="Clips"></div>
+    </section>
   </aside>
 
   <main class="viewer">
@@ -138,6 +146,8 @@ export function mountUi(root, options = {}) {
     onWireframeChange = () => {},
     onResetView = () => {},
     onLayoutChange = () => {},
+    onClipChange = () => {},
+    onPlayingChange = () => {},
     fetchImpl = globalThis.fetch,
     search = '',
     history = globalThis.history,
@@ -164,11 +174,16 @@ export function mountUi(root, options = {}) {
     sourceNote: root.querySelector('#source-note'),
     currentName: root.querySelector('#current-name'),
     stats: root.querySelector('#stats'),
+    motion: root.querySelector('#motion'),
+    clipList: root.querySelector('#clip-list'),
+    playPause: root.querySelector('#play-pause'),
   }
 
   let models = []
   let selected = null
   let mode = 'model'
+  let clip = null
+  let playing = true
 
   function setStatus(text, kind = 'info') {
     el.status.textContent = text
@@ -190,8 +205,56 @@ export function mountUi(root, options = {}) {
     const entries = [['size', formatBytes(model.byteSize)]]
     if (typeof model.triangles === 'number') entries.push(['triangles', formatCount(model.triangles)])
     if (typeof model.materials === 'number') entries.push(['materials', formatCount(model.materials)])
+    if (typeof model.joints === 'number') entries.push(['joints', formatCount(model.joints)])
     entries.push(['modified', formatAge(model.modifiedAt)])
     return entries
+  }
+
+  /**
+   * The clip list for the selected model. Names come from the server's read of
+   * the file, and are replaced by the viewer's own list once it has parsed the
+   * GLB, because the renderer is the one that will actually play them.
+   */
+  function showClips(names, active = null) {
+    el.clipList.innerHTML = ''
+    el.motion.hidden = !names.length
+    if (!names.length) {
+      clip = null
+      return
+    }
+    clip = active && names.includes(active) ? active : names[0]
+    for (const name of names) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'clip'
+      button.setAttribute('role', 'radio')
+      button.setAttribute('aria-checked', String(name === clip))
+      button.textContent = name
+      button.addEventListener('click', () => selectClip(name))
+      el.clipList.append(button)
+    }
+    markClip()
+  }
+
+  function markClip() {
+    for (const button of el.clipList.querySelectorAll('.clip')) {
+      const on = button.textContent === clip
+      button.setAttribute('aria-checked', String(on))
+      button.classList.toggle('selected', on)
+    }
+  }
+
+  function selectClip(name) {
+    clip = name
+    markClip()
+    onClipChange(name)
+  }
+
+  function setPlaying(on) {
+    playing = on
+    el.playPause.textContent = on ? 'Pause' : 'Play'
+    el.playPause.setAttribute('aria-pressed', String(on))
+    onPlayingChange(on)
   }
 
   // The picture the mesh was reconstructed from. Seeing both is the only way to
@@ -322,6 +385,7 @@ export function mountUi(root, options = {}) {
     el.currentName.textContent = model.name
     setStats(statsFor(model))
     showSource(model)
+    showClips(model.animations || [])
     rememberInUrl(model)
     if (model.readable === false) {
       setStatus(`${model.name} is not a readable GLB`, 'error')
@@ -359,6 +423,7 @@ export function mountUi(root, options = {}) {
       setStats([])
       el.currentName.textContent = ''
       showSource(null)
+      showClips([])
       setStatus(`No .glb files in ${payload.dir}. Generate one with the pipeline, then hit Refresh.`,
                 'empty')
       return models
@@ -396,6 +461,7 @@ export function mountUi(root, options = {}) {
   el.reset.addEventListener('click', () => onResetView())
   el.tabModel.addEventListener('click', () => setMode('model'))
   el.tabImage.addEventListener('click', () => setMode('image'))
+  el.playPause.addEventListener('click', () => setPlaying(!playing))
 
   return {
     elements: el,
@@ -403,6 +469,13 @@ export function mountUi(root, options = {}) {
     select,
     setStatus,
     setStats,
+    showClips,
+    get clip() {
+      return clip
+    },
+    get playing() {
+      return playing
+    },
     get models() {
       return models
     },

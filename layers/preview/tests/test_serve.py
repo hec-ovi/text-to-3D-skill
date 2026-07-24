@@ -25,7 +25,7 @@ MODEL_LIST_SCHEMA = load(os.path.join(LAYER, "schema", "model_list.json"))
 ERROR_SCHEMA = load(os.path.join(LAYER, "schema", "error.json"))
 
 
-def make_glb(triangles=4, materials=1, meshes=1):
+def make_glb(triangles=4, materials=1, meshes=1, animations=(), joints=0):
     """Real GLB bytes: header, JSON chunk, BIN chunk."""
     index_count = triangles * 3
     indices = struct.pack(f"<{index_count}H", *([0] * index_count))
@@ -44,6 +44,16 @@ def make_glb(triangles=4, materials=1, meshes=1):
     }
     if materials:
         gltf["materials"] = [{"pbrMetallicRoughness": {}} for _ in range(materials)]
+    if joints:
+        gltf["nodes"] = [{"name": f"joint{i}"} for i in range(joints)]
+        gltf["skins"] = [{"joints": list(range(joints))}]
+    if animations:
+        gltf["animations"] = [
+            {"name": name,
+             "channels": [{"sampler": 0, "target": {"node": 0, "path": "rotation"}}],
+             "samplers": [{"input": 0, "output": 1}]}
+            for name in animations
+        ]
 
     json_bytes = json.dumps(gltf).encode("utf-8")
     json_bytes += b" " * (-len(json_bytes) % 4)
@@ -155,6 +165,27 @@ def test_an_unknown_id_is_a_not_found_envelope(server):
     payload = json.loads(body)
     validate(payload, ERROR_SCHEMA)
     assert payload["code"] == "NOT_FOUND"
+
+
+def test_a_rigged_model_advertises_its_clips_and_joints(server):
+    base, directory = server
+    (directory / "hero-rigged.glb").write_bytes(
+        make_glb(animations=["idle", "walk"], joints=19))
+
+    payload = json.loads(get(base + "/api/models")[1])
+    validate(payload, MODEL_LIST_SCHEMA)
+    entry = payload["models"][0]
+    assert entry["animations"] == ["idle", "walk"]
+    assert entry["joints"] == 19
+
+
+def test_a_static_model_says_nothing_about_clips(server):
+    base, directory = server
+    (directory / "prop.glb").write_bytes(make_glb())
+
+    entry = json.loads(get(base + "/api/models")[1])["models"][0]
+    assert "animations" not in entry
+    assert "joints" not in entry
 
 
 def test_newest_first(server):

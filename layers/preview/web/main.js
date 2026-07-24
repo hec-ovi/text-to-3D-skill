@@ -12,6 +12,8 @@ const ui = mountUi(app, {
   onWireframeChange: (on) => viewer.setWireframe(on),
   onResetView: () => viewer.resetView(),
   onLayoutChange: () => viewer.resize(),
+  onClipChange: (name) => viewer.play(name),
+  onPlayingChange: (on) => viewer.setPlaying(on),
 })
 
 const viewer = createViewer(ui.elements.stage)
@@ -19,9 +21,14 @@ viewer.setRotation(ui.rotation)
 
 async function show(model) {
   try {
-    const { triangles } = await viewer.load(model.uri)
+    const { triangles, clips } = await viewer.load(model.uri)
+    // The clips the renderer parsed, not the ones the server listed: the file
+    // is the authority on what can actually be played.
+    ui.showClips(clips.map((c) => c.name), ui.clip)
+    if (ui.clip) viewer.play(ui.clip)
+    const motion = clips.length ? ` · ${clips.length} clip${clips.length === 1 ? '' : 's'}` : ''
     // The count the renderer actually built, not the one the server predicted.
-    ui.setStatus(`${model.name} · ${formatCount(triangles)} triangles`, 'ok')
+    ui.setStatus(`${model.name} · ${formatCount(triangles)} triangles${motion}`, 'ok')
   } catch (error) {
     ui.setStatus(`Could not load ${model.name}: ${error.message}`, 'error')
   }

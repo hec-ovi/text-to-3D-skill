@@ -176,6 +176,47 @@ output[data-kind="error"] { color: var(--error); }
 .sidebar-note { margin: 0; color: var(--dim); }
 .sidebar-note[hidden] { display: none; }
 
+/* ---- motion ------------------------------------------------------------- */
+
+.motion {
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+  display: grid;
+  gap: 7px;
+}
+.motion[hidden] { display: none; }
+
+.motion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.motion-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.clip-list { display: grid; gap: 4px; }
+.clip {
+  text-align: left;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  color: var(--dim);
+  text-transform: capitalize;
+}
+.clip:hover { background: var(--panel-2); }
+.clip.selected {
+  color: var(--text);
+  background: var(--panel-2);
+  border-color: #33526a;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 /* ---- viewer ------------------------------------------------------------- */
 
 .viewer {
