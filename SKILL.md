@@ -40,7 +40,7 @@ Useful flags:
 
 | Flag | Default | When to change it |
 | --- | --- | --- |
-| `--res 512\|1024\|1536` | 512 | 1024 for detail worth the extra minutes. 1536 needs headroom. |
+| `--res 512\|1024\|1536` | 512 | **Use 1024 for characters and figures.** 512 spreads its detail budget over the whole body and the texture comes out washed out; the same image at 1024 keeps leather brown, fur reading as fur and steel separate. Compact props are fine at 512. 1536 needs headroom. |
 | `--seed N` | from the prompt | Pin it to reproduce an asset exactly. |
 | `--no-texture` | off | Geometry only, when the caller applies its own material. |
 | `--bg-removal birefnet` | auto | The subject has specular highlights the threshold matte punches holes through. |
@@ -93,6 +93,8 @@ Every failure is a JSON envelope on stderr with a code from a closed set. Read `
 | `IMAGE2MESH_FAILED` + `cause.code: GLB_INVALID` | The engine wrote a file no loader would open. Keep it and file it, this is a bug. |
 
 ## Generating several assets
+
+Do **all the images first, then all the meshes**, rather than alternating. The mesh stage reads about 11 GB of weights and holds 3.6 GB of GTT, which is enough to push ComfyUI's weights out of memory on a busy box; the next image render then pays a full reload. Measured on this machine: a warm klein render is 10 to 14 seconds, the same render after an eviction was 522 seconds. If the image stage suddenly takes minutes, that is a reload, not klein being slow. `docker logs strix-beast | grep 'Requested to load'` confirms it.
 
 The default runner starts a container per call and pays model load every time. For a batch, start the resident server once and point the pipeline at it:
 
