@@ -1,5 +1,8 @@
-# local idea notes (kept out of the published repo)
+# local idea and requirement notes (kept out of the published repo)
 docs/IDEA.md
+docs/FEATURES.md
+docs/*.mp4
+session
 
 # build artifacts
 build/
