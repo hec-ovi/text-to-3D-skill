@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["image"],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": { "type": "string", "const": "1.1" },
     "image": {
       "type": "object",
       "description": "Reference to a PNG on the shared filesystem. Shape-compatible with text2image's ImageResult.image.",
@@ -35,7 +35,8 @@
     "textureResolution": { "type": "integer", "enum": [512, 1024], "description": "PBR volume resolution. Omit for the engine's auto choice." },
     "atlasPx": { "type": "integer", "enum": [512, 1024, 2048, 4096], "description": "UV atlas size. Omit for 2048 at res 1024, 1024 at res 512." },
     "boxUv": { "type": "boolean", "default": false, "description": "Voxel-native box projection instead of an xatlas unwrap. Faster, worse seams." },
-    "decimateFaces": { "type": "integer", "minimum": 0, "description": "Target face count. 0 keeps the full mesh. Omit for 300K at res 1024, 150K at res 512." },
+    "targetFaces": { "type": "integer", "minimum": 100, "maximum": 2000000, "description": "Quadric simplify target in faces. Omit for 300K at res 1024, 150K at res 512. Low values give a game-ready low-poly mesh; the texture is baked after the collapse so it stays aligned. Ignored when decimateGrid is set." },
+    "decimateGrid": { "type": "integer", "minimum": 0, "description": "Legacy cluster-grid decimation: the lattice resolution to snap vertices to, not a face count. 0 disables decimation entirely and keeps the full remeshed shell. Omit to use the quadric path, which is what targetFaces controls." },
     "backgroundRemoval": {
       "type": "string",
       "enum": ["auto", "threshold", "birefnet"],

@@ -1,6 +1,6 @@
 # CONTRACT - image2mesh
 
-`contractVersion: 1.0`
+`contractVersion: 1.1`
 
 ## Purpose
 
@@ -11,6 +11,8 @@ Reconstruct one image into a textured GLB that a glTF loader can open.
 | Param | Schema | Preconditions |
 | --- | --- | --- |
 | `MeshRequest` | [`schema/mesh_request.json`](schema/mesh_request.json) | `image.uri` exists and its bytes hash to `image.checksum.sha256`; the layer re-hashes and refuses a mismatch. `modelsDir` holds the ten TRELLIS.2 GGUFs. For `runner: docker`, the image named by `dockerImage` is built and `/dev/dri` is present. `outDir` is writable. |
+
+`targetFaces` is the quadric simplify target and the knob a caller reaches for to get a low-poly asset: 4000 gives a 3810-triangle, 304 KB GLB where the default 150K target gives 147330 triangles and 4.8 MB, in the same run time. The collapse happens before the UV unwrap, so the texture is baked onto the simplified mesh. Measurements in [`CHANGES.md`](CHANGES.md).
 
 Entry point: `python3 src/mesh.py --image <png> --out-dir <dir>`, or `--request <file|->`. Python 3.10+, standard library only.
 

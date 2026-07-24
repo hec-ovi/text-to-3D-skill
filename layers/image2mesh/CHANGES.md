@@ -81,3 +81,21 @@ Two consequences worth stating. Because each thread owns a contiguous vertex ran
 `T2M_DECIMATE_TIMING=1` makes `decimate_qem_vk` print, per round, the face count, the edge count, and the split between building CSR adjacency, building the unique edge list, the GPU dispatch plus its transfers, and the host-side stream compaction. The Vulkan driver only runs four compute kernels per round; adjacency, edge building and compaction are all host work, and that split is invisible from outside the binary.
 
 Diagnostics only, off by default, no effect on output.
+
+### 4. A face-count target for the quadric simplifier
+
+The simplifier's target was hardcoded: 300K faces on the res-1024 cascade, 150K at res 512. The MeshRequest exposed a `decimateFaces` knob that claimed to set it, but the value went to `--decim`, which selects the legacy cluster-grid decimator and is a lattice resolution, not a face count. Setting it to 4000 asked for a 4000-cell grid, and setting it to 0 turned decimation off entirely.
+
+`--target-faces N` now sets the quadric target directly, and the schema's `targetFaces` maps to it. `decimateGrid` is what the cluster-grid knob is called now, described as what it actually is.
+
+The collapse runs on the remeshed shell before the UV unwrap, so the atlas is built for the mesh you asked for and the texture is baked onto it afterwards. Nothing has to be re-projected.
+
+Measured on the gfx1151 box, same input image and seed, res 512:
+
+| | default (150K target) | `--target-faces 4000` |
+| --- | --- | --- |
+| triangles | 147330 | **3810** |
+| GLB | 4768688 B | **304428 B** |
+| engine time | 138.5 s | 136.8 s |
+
+**15.7x smaller for the same run time.** The time is the point worth noting: the simplifier still walks the 6.5 M face dual-grid mesh down round by round, and stopping at 4K instead of 150K saves a handful of rounds at the cheap end. What you buy is the file and everything downstream of it, not the generation. The result validates clean against the Khronos glTF-Validator: 3810 triangles, 2970 vertices, 3 textures, 0 errors and 0 warnings.

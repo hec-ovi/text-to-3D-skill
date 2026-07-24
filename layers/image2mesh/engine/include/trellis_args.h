@@ -41,6 +41,10 @@ struct TrellisParams {
                                 //   suppresses the doubled inner skin some subjects
                                 //   develop at band 1 (thin walls, chairs, vessels)
     int  decim    = -1;         // decimation cluster grid   (-1 => per-cascade default)
+    int  target_faces = -1;     // quadric simplify target   (-1 => 300K @1024 / 150K @512).
+                                //   Applied on the remeshed shell before the UV unwrap, so a
+                                //   low-poly target also cuts the xatlas and bake cost rather
+                                //   than paying for charts that are about to be collapsed.
     int  tex      = -1;         // UV atlas size in px        (-1 => per-cascade default)
     int  tex_res  = -1;         // texture PBR resolution: -1 => auto (drop dense res-1024 tex to
                                 //   512, whose clean coarse PBR bakes onto the res-1024 mesh

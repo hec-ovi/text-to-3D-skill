@@ -1,6 +1,6 @@
 # CONTRACT - pipeline
 
-`contractVersion: 1.0`
+`contractVersion: 1.1`
 
 ## Purpose
 

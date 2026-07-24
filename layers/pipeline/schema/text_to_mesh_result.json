@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["contractVersion", "glb", "stages", "elapsedMs"],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": { "type": "string", "const": "1.1" },
     "prompt": { "type": "string" },
     "glb": {
       "type": "object",

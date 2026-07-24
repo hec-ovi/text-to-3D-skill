@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["prompt"],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": { "type": "string", "const": "1.1" },
     "prompt": { "type": "string", "minLength": 1, "description": "What the object is." },
     "seed": { "type": "integer", "minimum": 0, "description": "Omit for a seed derived from the prompt. Fixes the image, which fixes the mesh." },
     "resolution": { "type": "integer", "enum": [512, 1024, 1536], "default": 512 },
@@ -15,6 +15,7 @@
     "steps": { "type": "integer", "minimum": 1, "maximum": 50, "default": 4, "description": "Diffusion steps for the intermediate image." },
     "imageSize": { "type": "integer", "minimum": 256, "maximum": 2048, "multipleOf": 16, "default": 1024, "description": "Square. TRELLIS crops to the subject anyway." },
     "backgroundRemoval": { "type": "string", "enum": ["auto", "threshold", "birefnet"], "default": "auto" },
+    "targetFaces": { "type": "integer", "minimum": 100, "maximum": 2000000, "description": "Quadric simplify target in faces, passed straight to image2mesh. Omit for the engine default of 300K at res 1024, 150K at res 512." },
     "outDir": { "type": "string", "description": "Where the PNG and GLB land. Defaults to the working directory." },
     "keepImage": { "type": "boolean", "default": true, "description": "false deletes the intermediate PNG once the mesh is out." },
     "comfyEndpoint": { "type": "string", "default": "http://127.0.0.1:8188" },

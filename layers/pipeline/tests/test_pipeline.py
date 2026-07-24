@@ -118,6 +118,21 @@ def test_resolution_and_texture_reach_the_engine(tmp_path):
     assert "--bg-removal birefnet" in flat
 
 
+def test_target_faces_reaches_the_engine(tmp_path):
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a wooden crate", "--target-faces", "3000",
+                *base_args(tmp_path, comfy, engine))
+    assert "--target-faces 3000" in " ".join(json.loads(argv_path.read_text()))
+
+
+def test_without_target_faces_the_engine_picks_its_own(tmp_path):
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a wooden crate", *base_args(tmp_path, comfy, engine))
+    assert "--target-faces" not in json.loads(argv_path.read_text())
+
+
 def test_steps_and_image_size_reach_comfy(tmp_path):
     engine, _ = fake_engine(tmp_path)
     with StubComfy() as comfy:

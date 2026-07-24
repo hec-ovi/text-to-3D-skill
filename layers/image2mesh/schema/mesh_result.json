@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["contractVersion", "glb", "geometry", "engine", "elapsedMs"],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": { "type": "string", "const": "1.1" },
     "glb": {
       "type": "object",
       "additionalProperties": false,

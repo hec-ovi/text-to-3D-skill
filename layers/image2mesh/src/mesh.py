@@ -36,7 +36,7 @@ LAYER = os.path.dirname(HERE)
 REQ_SCHEMA = os.path.join(LAYER, "schema", "mesh_request.json")
 RES_SCHEMA = os.path.join(LAYER, "schema", "mesh_result.json")
 
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
 
 GLB_MAGIC = 0x46546C67
 CHUNK_JSON = 0x4E4F534A
@@ -174,8 +174,10 @@ def engine_flags(req):
         flags += ["--tex-res", str(req["textureResolution"])]
     if req.get("atlasPx"):
         flags += ["--atlas", str(req["atlasPx"])]
-    if req.get("decimateFaces") is not None:
-        flags += ["--decim", str(req["decimateFaces"])]
+    if req.get("decimateGrid") is not None:
+        flags += ["--decim", str(req["decimateGrid"])]
+    if req.get("targetFaces"):
+        flags += ["--target-faces", str(req["targetFaces"])]
     if req.get("maxTokens"):
         flags += ["--max-tokens", str(req["maxTokens"])]
     if req.get("band"):
@@ -258,6 +260,8 @@ def run_server(req, image_path, out_path, timeout):
     fields = {"seed": str(req["seed"]), "resolution": str(req["resolution"])}
     if req["backgroundRemoval"] != "auto":
         fields["bg_removal"] = req["backgroundRemoval"]
+    if req.get("targetFaces"):
+        fields["target_faces"] = str(req["targetFaces"])
 
     body = b""
     for key, value in fields.items():
@@ -359,6 +363,9 @@ def main(argv=None):
     parser.add_argument("--res", type=int, choices=[512, 1024, 1536], default=512)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-texture", action="store_true")
+    parser.add_argument("--target-faces", type=int,
+                        help="quadric simplify target in faces (default 300K at res 1024, "
+                             "150K at res 512)")
     parser.add_argument("--bg-removal", choices=["auto", "threshold", "birefnet"], default="auto")
     parser.add_argument("--runner", choices=["docker", "server", "binary"], default="docker")
     parser.add_argument("--docker-image", default="text-to-3d/engine:vulkan")
@@ -398,6 +405,8 @@ def main(argv=None):
             request["outDir"] = args.out_dir
         if args.binary_path:
             request["binaryPath"] = args.binary_path
+        if args.target_faces:
+            request["targetFaces"] = args.target_faces
     else:
         parser.error("one of --image or --request is required")
 

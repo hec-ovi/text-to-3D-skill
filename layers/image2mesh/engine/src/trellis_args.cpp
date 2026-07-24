@@ -41,6 +41,10 @@ void print_usage(const char* argv0, bool server) {
         "                          inner skin thin-walled subjects develop at 1)\n"
         "      --decim GRID        legacy cluster-grid decimation (default: quadric\n"
         "                          simplify to 300K faces @1024 / 150K @512; 0 = none)\n"
+        "      --target-faces N    quadric simplify target in faces (default 300K @1024 /\n"
+        "                          150K @512). Low values give a game-ready low-poly mesh;\n"
+        "                          the texture is baked after the collapse, so it stays\n"
+        "                          aligned. Ignored when --decim is set.\n"
         "      --atlas PX          UV atlas size (default 2048 @1024 / 1024 @512)\n"
         "      --tex-res N         texture PBR resolution 512/1024 (default: auto — drops\n"
         "                          a dense res-1024 decode to a clean res-512 PBR volume)\n"
@@ -84,6 +88,7 @@ bool parse_args(int argc, char** argv, TrellisParams& p) {
         else if (a == "--box-uv")               { p.xatlas = false; }
         else if (a == "--band")                 { const char* v = need(a.c_str()); if (!v) return false; p.band = atoi(v); }
         else if (a == "--decim")                { const char* v = need(a.c_str()); if (!v) return false; p.decim = atoi(v); }
+        else if (a == "--target-faces")         { const char* v = need(a.c_str()); if (!v) return false; p.target_faces = atoi(v); }
         else if (a == "--atlas" || a == "--tex"){ const char* v = need(a.c_str()); if (!v) return false; p.tex = atoi(v); }
         else if (a == "--tex-res")              { const char* v = need(a.c_str()); if (!v) return false; p.tex_res = atoi(v); }
         else if (a == "--f32")                  { p.f32 = true; }

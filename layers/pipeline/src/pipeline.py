@@ -31,7 +31,7 @@ RES_SCHEMA = os.path.join(LAYER, "schema", "text_to_mesh_result.json")
 TEXT2IMAGE = os.path.join(LAYERS, "text2image", "src", "klein.py")
 IMAGE2MESH = os.path.join(LAYERS, "image2mesh", "src", "mesh.py")
 
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
 
 
 class PipelineError(Exception):
@@ -116,6 +116,7 @@ def generate(request):
         "texture": req["texture"],
         "backgroundRemoval": req["backgroundRemoval"],
         "seed": image_result.get("seed", 42) % 2147483647,
+        **({"targetFaces": req["targetFaces"]} if req.get("targetFaces") else {}),
         "runner": req["runner"],
         "endpoint": req["engineEndpoint"],
         "modelsDir": req["modelsDir"],
@@ -163,6 +164,9 @@ def main(argv=None):
     parser.add_argument("--steps", type=int, default=4)
     parser.add_argument("--image-size", type=int, default=1024)
     parser.add_argument("--no-texture", action="store_true")
+    parser.add_argument("--target-faces", type=int,
+                        help="quadric simplify target in faces (default 300K at res 1024, "
+                             "150K at res 512)")
     parser.add_argument("--bg-removal", choices=["auto", "threshold", "birefnet"], default="auto")
     parser.add_argument("--drop-image", action="store_true",
                         help="delete the intermediate PNG once the GLB is written")
@@ -198,6 +202,8 @@ def main(argv=None):
         }
         if args.seed is not None:
             request["seed"] = args.seed
+        if args.target_faces:
+            request["targetFaces"] = args.target_faces
         if args.engine_path:
             request["enginePath"] = args.engine_path
     else:

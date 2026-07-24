@@ -42,6 +42,7 @@ Useful flags:
 | --- | --- | --- |
 | `--res 512\|1024\|1536` | 512 | **Use 1024 for characters and figures.** 512 spreads its detail budget over the whole body and the texture comes out washed out; the same image at 1024 keeps leather brown, fur reading as fur and steel separate. Compact props are fine at 512. 1536 needs headroom. |
 | `--seed N` | from the prompt | Pin it to reproduce an asset exactly. |
+| `--target-faces N` | 150K at res 512, 300K at 1024 | **Low poly.** The quadric simplify target. 4000 gives a 3810-triangle, 304 KB GLB instead of 147330 triangles and 4.8 MB, in the same run time, and the texture is baked onto the simplified mesh rather than reprojected. Pick by use: a few thousand for a game prop, 20K-50K for a hero asset, the default when the mesh is going into a renderer rather than an engine. |
 | `--no-texture` | off | Geometry only, when the caller applies its own material. |
 | `--bg-removal birefnet` | auto | The subject has specular highlights the threshold matte punches holes through. |
 | `--steps N` | 4 | klein is a 4-step model; more steps rarely helps. |

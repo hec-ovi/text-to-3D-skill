@@ -386,8 +386,13 @@ int trellis_run(const trellis::TrellisParams& cfg) {
         } else if (cfg.decim == 0) {
             dv = sverts; df = sfaces;
         } else {
+            // The quadric target: --target-faces when given, else the per-cascade default.
+            // Everything downstream (weld, hole fill, xatlas, bake) works on the result, so a
+            // low target buys time in the UV stage as well as triangles in the file.
+            const int qem_target = cfg.target_faces > 0 ? cfg.target_faces
+                                                        : (cascade ? 300000 : 150000);
             trellis::decimate_qem(sverts, (int)sverts.size()/3, sfaces, (int)sfaces.size()/3,
-                                  cascade ? 300000 : 150000, dv, df);
+                                  qem_target, dv, df);
             trellis::weld_vertices(dv, df, nullptr, 1.0f / ((float)so.res * 8.0f));
             trellis::fill_small_holes(df);
             // Second component pass on the decimated mesh: a hallucinated ground plane

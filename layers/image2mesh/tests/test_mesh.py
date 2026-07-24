@@ -199,7 +199,7 @@ def test_request_knobs_reach_the_engine(tmp_path):
         "image": {"uri": png, "mediaType": "image/png",
                   "byteSize": os.path.getsize(png), "checksum": {"sha256": digest}},
         "resolution": 1024, "seed": 7, "texture": False, "boxUv": True,
-        "backgroundRemoval": "birefnet", "atlasPx": 4096, "decimateFaces": 0,
+        "backgroundRemoval": "birefnet", "atlasPx": 4096, "decimateGrid": 0,
         "textureResolution": 512, "band": 2, "maxTokens": 8192,
         "runner": "binary", "binaryPath": engine, "outDir": str(tmp_path),
     }
@@ -219,6 +219,37 @@ def test_request_knobs_reach_the_engine(tmp_path):
     assert "--tex-res 512" in flat
     assert "--band 2" in flat
     assert "--max-tokens 8192" in flat
+
+
+def test_target_faces_reaches_the_engine(tmp_path):
+    png, _ = write_png(tmp_path)
+    engine, argv_path = fake_engine(tmp_path)
+    run_cli("--image", png, "--out-dir", str(tmp_path), "--target-faces", "4000",
+            "--runner", "binary", "--binary-path", engine)
+    assert "--target-faces 4000" in " ".join(json.loads(argv_path.read_text()))
+
+
+def test_no_target_faces_leaves_the_engine_default_alone(tmp_path):
+    png, _ = write_png(tmp_path)
+    engine, argv_path = fake_engine(tmp_path)
+    run_cli("--image", png, "--out-dir", str(tmp_path),
+            "--runner", "binary", "--binary-path", engine)
+    assert "--target-faces" not in json.loads(argv_path.read_text())
+
+
+def test_target_faces_below_the_floor_is_refused(tmp_path):
+    png, digest = write_png(tmp_path)
+    engine, _ = fake_engine(tmp_path)
+    request = {
+        "image": {"uri": png, "mediaType": "image/png",
+                  "byteSize": os.path.getsize(png), "checksum": {"sha256": digest}},
+        "targetFaces": 12,
+        "runner": "binary", "binaryPath": engine, "outDir": str(tmp_path),
+    }
+    proc = subprocess.run([sys.executable, CLI, "--request", "-"],
+                          input=json.dumps(request), capture_output=True, text=True)
+    assert proc.returncode == 1
+    assert json.loads(proc.stderr)["code"] == "INVALID_REQUEST"
 
 
 def test_texture_on_by_default_adds_no_flag(tmp_path):
