@@ -71,6 +71,16 @@ Textures are WebP inside the GLB via `EXT_texture_webp`. Rebuild with `-DT2M_WEB
 
 Generating more than one asset in a session? Start the resident server once and pass `--runner server`, so model load is paid at startup instead of per call. The command is in [`SKILL.md`](SKILL.md).
 
+## Look at it
+
+```bash
+python3 layers/preview/src/serve.py --dir out --open
+```
+
+![The preview viewer showing a generated brass helmet on a turntable](docs/assets/preview.png)
+
+A turntable on `http://127.0.0.1:8190`: pick any GLB in the folder, drag to orbit, scroll to zoom, toggle the spin and its speed, flip to wireframe. three.js is vendored into the repo, so the page works with no network and no build step. `?model=<name>` deep links a specific file.
+
 ## Performance
 
 One 1024x1024 image to a textured GLB at res 512, on the gfx1151 box, same input and seed for both:
@@ -94,16 +104,19 @@ Three blackboxes. Each owns a folder, declares a contract, and is changed withou
 | [`layers/text2image`](layers/text2image) | prompt framing, the ComfyUI graph, the klein weights | [CONTRACT.md](layers/text2image/CONTRACT.md) |
 | [`layers/image2mesh`](layers/image2mesh) | the Vulkan engine, the container, GLB validation | [CONTRACT.md](layers/image2mesh/CONTRACT.md) |
 | [`layers/pipeline`](layers/pipeline) | stage order, error wrapping | [CONTRACT.md](layers/pipeline/CONTRACT.md) |
+| [`layers/preview`](layers/preview) | the three.js turntable and the server behind it | [CONTRACT.md](layers/preview/CONTRACT.md) |
 
 Everything crossing a boundary is a schema-validated JSON envelope, and binary payloads cross by reference: path, media type, byte size, sha256. The mesh layer re-hashes the PNG it is handed, so a mismatch fails the run instead of silently reconstructing the wrong picture.
 
 ## Tests
 
 ```bash
-./scripts/test.sh          # all three layers
+./scripts/test.sh          # all four layers, 90 tests
 ```
 
 No GPU and no weights needed: the tests stand in only for ComfyUI and the engine binary, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that does need the GPU is skipped unless `T2M_RUN_GPU=1`.
+
+The preview layer adds 17 HTTP tests against a real server and 16 DOM tests (vitest, jsdom, Testing Library, MSW) that drive the controls with real clicks. Those need `npm install` in `layers/preview` once; without it they are skipped with a note rather than failing.
 
 ## Limits
 

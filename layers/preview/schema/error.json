@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "preview/error.json",
+  "title": "PreviewError",
+  "description": "Closed error set for the preview layer. Returned as JSON with a matching HTTP status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "message"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "DIR_MISSING",
+        "NOT_FOUND",
+        "FORBIDDEN",
+        "PORT_IN_USE"
+      ]
+    },
+    "message": { "type": "string" },
+    "detail": { "type": "string" }
+  }
+}

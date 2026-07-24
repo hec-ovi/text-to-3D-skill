@@ -1,0 +1,107 @@
+:root {
+  --bg: #101216;
+  --panel: #191c22;
+  --line: #272b34;
+  --text: #dfe3ea;
+  --dim: #838b9b;
+  --accent: #7fc8a9;
+  --warn: #e0b25a;
+  --error: #e5736b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+footer.bar {
+  border-bottom: none;
+  border-top: 1px solid var(--line);
+}
+
+.brand { font-weight: 600; letter-spacing: 0.01em; }
+.dim, .field { color: var(--dim); }
+.spacer { flex: 1 1 auto; }
+
+select, button, input[type="range"] {
+  font: inherit;
+  color: var(--text);
+  background: #22262e;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+select { max-width: 42ch; }
+select:disabled { color: var(--dim); }
+
+button {
+  cursor: pointer;
+}
+button:hover { border-color: #3a4150; }
+button:active { transform: translateY(1px); }
+
+input[type="range"] { padding: 0; width: 110px; accent-color: var(--accent); }
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+  cursor: pointer;
+}
+.toggle input { accent-color: var(--accent); }
+
+.stage {
+  position: relative;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 50% 35%, #1e222b 0%, var(--bg) 70%);
+}
+.stage canvas { display: block; width: 100%; height: 100%; }
+
+output[role="status"] { color: var(--dim); }
+output[data-kind="ok"] { color: var(--accent); }
+output[data-kind="warn"] { color: var(--warn); }
+output[data-kind="error"] { color: var(--error); }
+
+dl#stats {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  flex-wrap: wrap;
+  color: var(--dim);
+}
+dl#stats dt { color: var(--dim); }
+dl#stats dt::after { content: ""; }
+dl#stats dd {
+  margin: 0 12px 0 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .brand, .field { display: none; }
+}

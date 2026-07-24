@@ -3,6 +3,8 @@ docs/IDEA.md
 
 # build artifacts
 build/
+# ...except the vendored three.js build, which the page actually loads
+!layers/preview/web/vendor/three/build/
 dist/
 *.o
 *.a
@@ -34,3 +36,7 @@ node_modules/
 
 # bench artifacts (results/*.json are committed, work/ is not)
 layers/image2mesh/bench/work/
+
+# preview layer test deps (the page itself needs no install)
+layers/preview/node_modules/
+layers/preview/package-lock.json

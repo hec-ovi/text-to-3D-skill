@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "preview/model_list.json",
+  "title": "ModelList",
+  "description": "Params out for GET /api/models: every GLB the preview server can serve, newest first.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "dir", "models"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "dir": { "type": "string", "description": "Absolute path of the directory being served." },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "uri", "byteSize", "modifiedAt"],
+        "properties": {
+          "name": { "type": "string", "description": "File name, also the value of the ?model= query parameter." },
+          "uri": { "type": "string", "description": "Path the browser fetches the bytes from, served as model/gltf-binary." },
+          "byteSize": { "type": "integer", "minimum": 1 },
+          "modifiedAt": { "type": "string", "description": "ISO 8601 UTC mtime. The list is sorted by this, newest first." },
+          "triangles": { "type": "integer", "minimum": 0, "description": "Read from the GLB. Absent when the file could not be parsed." },
+          "materials": { "type": "integer", "minimum": 0 },
+          "readable": { "type": "boolean", "description": "false when the file exists but does not parse as a GLB." }
+        }
+      }
+    }
+  }
+}

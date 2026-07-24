@@ -9,6 +9,7 @@ Each layer is a blackbox. Open one folder, read its `CONTRACT.md` and `schema/`,
 | The TRELLIS.2 engine itself: kernels, Vulkan compute, model loading, mesh export | [`layers/image2mesh/engine/`](../layers/image2mesh/engine/PROVENANCE.md) | the Python driver above it |
 | The container: base image, Vulkan drivers, device access, GTT behaviour | [`layers/image2mesh/docker/`](../layers/image2mesh/docker/Dockerfile) | |
 | Stage order, what the CLI accepts, how failures are wrapped | [`layers/pipeline/`](../layers/pipeline/CONTRACT.md) | either stage's internals |
+| The viewer: controls, lighting, framing, rotation, the model list API | [`layers/preview/`](../layers/preview/CONTRACT.md) | anything that generates assets |
 | What an agent is told about this skill | [`SKILL.md`](../SKILL.md) | |
 | Fetching or verifying weights | [`scripts/fetch-models.sh`](../scripts/fetch-models.sh) | |
 | Performance claims and how they were measured | [`layers/image2mesh/bench/`](../layers/image2mesh/bench/README.md) | |
@@ -31,3 +32,4 @@ TextToMeshRequest -> [pipeline]
 - **text2image** owns everything about turning words into a picture, and knows nothing about meshes.
 - **image2mesh** owns everything about turning a picture into a GLB, and does not care where the picture came from.
 - **pipeline** owns the order and the error wrapping, and imports from neither.
+- **preview** owns showing a GLB to a human, and reads a directory of files without knowing what made them.

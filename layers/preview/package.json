@@ -1,0 +1,16 @@
+{
+  "name": "t2m-preview",
+  "private": true,
+  "type": "module",
+  "description": "three.js preview for generated GLBs. The page itself needs no build step and no install; these devDependencies exist only to run the DOM tests.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^28.0.0",
+    "msw": "^2.12.7",
+    "vitest": "^4.0.6"
+  }
+}

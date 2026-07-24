@@ -60,6 +60,17 @@ Useful flags:
 
 The GLB is validated before you see it: glTF magic, container version 2, a JSON chunk that parses, a BIN chunk, at least one mesh. `triangles` is counted from the file, not predicted.
 
+## Showing the user the result
+
+A path is not a preview. When the user will want to see the asset, start the turntable and give them the link:
+
+```bash
+python3 layers/preview/src/serve.py --dir out &
+# then point them at http://127.0.0.1:8190/?model=<the file name>
+```
+
+It lists every GLB in the folder newest first, spins the selected one, and has wireframe and orbit controls. Add `--open` to open a browser directly.
+
 ## Using it in three.js
 
 ```js
