@@ -99,6 +99,17 @@ Textures are WebP inside the GLB via `EXT_texture_webp`. Rebuild with `-DT2M_WEB
 
 Generating more than one asset in a session? Start the resident server once and pass `--runner server`, so model load is paid at startup instead of per call. The command is in [`SKILL.md`](SKILL.md).
 
+## Search before you generate
+
+Generating takes minutes; fetching an existing model takes seconds. `layers/assets` searches Poly Haven, which is a few hundred models, all CC0, no key and no account, and converts what you pick into a single GLB in the same folder:
+
+```bash
+python3 layers/assets/src/assets.py search --query "chair wood" --limit 5
+python3 layers/assets/src/assets.py fetch --id painted_wooden_chair_01 --out-dir out
+```
+
+The site that prompted this, threejsassets.com, has no API at all and forbids automated access in its terms, so it cannot be wired in. Why Poly Haven and what the alternatives cost in licence terms: [`layers/assets/README.md`](layers/assets/README.md).
+
 ## Low poly, and making it move
 
 `--target-faces N` sets the quadric simplify target. At res 512 the default is 150K faces; asking for 4000 gives a 3810-triangle, 304 KB GLB in the same run time, textured, because the collapse happens before the UV unwrap and the texture is baked onto the simplified mesh.
@@ -138,7 +149,7 @@ The output GLB passes the Khronos glTF-Validator with 0 errors and 0 warnings (`
 
 ## Layout
 
-Six blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.
+Seven blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.
 
 | Layer | Owns | Contract |
 | --- | --- | --- |
@@ -147,6 +158,7 @@ Six blackboxes. Each owns a folder, declares a contract, and is changed without 
 | [`layers/pipeline`](layers/pipeline) | stage order, error wrapping | [CONTRACT.md](layers/pipeline/CONTRACT.md) |
 | [`layers/rig`](layers/rig) | skeletons, skinning, the clip set, prop sockets | [CONTRACT.md](layers/rig/CONTRACT.md) |
 | [`layers/preview`](layers/preview) | the three.js turntable and the server behind it | [CONTRACT.md](layers/preview/CONTRACT.md) |
+| [`layers/assets`](layers/assets) | searching and fetching stock CC0 models | [CONTRACT.md](layers/assets/CONTRACT.md) |
 | [`layers/mcp`](layers/mcp) | the MCP tool surface over stdio | [CONTRACT.md](layers/mcp/CONTRACT.md) |
 
 Everything crossing a boundary is a schema-validated JSON envelope, and binary payloads cross by reference: path, media type, byte size, sha256. The mesh layer re-hashes the PNG it is handed, so a mismatch fails the run instead of silently reconstructing the wrong picture.
@@ -154,7 +166,7 @@ Everything crossing a boundary is a schema-validated JSON envelope, and binary p
 ## Tests
 
 ```bash
-./scripts/test.sh          # all six layers, 128 tests, plus the skill checks
+./scripts/test.sh          # all seven layers, 143 tests, plus the skill checks
 ```
 
 No GPU and no weights needed: the tests stand in only for ComfyUI, the engine binary and Blender, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that needs the GPU is skipped unless `T2M_RUN_GPU=1`, and the rig layer's five real-Blender tests skip themselves with a note when Blender is not installed.

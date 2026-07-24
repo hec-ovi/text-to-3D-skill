@@ -21,6 +21,7 @@ prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB -> Blender 
 | `generate` | The user wants an asset from a description | [Generate](#generate) | an asset id, a path, a preview URL |
 | `lowpoly` | It is going into a game or a web scene | [Low poly](#lowpoly) | the same, at a triangle budget you set |
 | `rig` | It is a character, or a prop that needs an attach point | [Rig](#rig) | an asset id whose GLB carries a skeleton and clips |
+| `assets` | A stock model would do, and minutes matter | [Assets](#assets) | an asset id, fetched in seconds |
 | `preview` | The user should see it | [Preview](#preview) | a URL for one asset |
 | `mcp` | Another agent or client should drive this | [MCP](#mcp) | the same ids, over a protocol |
 | `batch` | Several assets in one session | [Batch](#batch) | ordering that avoids a 500 s stall |
@@ -103,6 +104,18 @@ const mixer = new THREE.AnimationMixer(gltf.scene)
 mixer.clipAction(gltf.animations.find((c) => c.name === 'walk')).play()
 ```
 
+<a id="assets"></a>
+## Assets
+
+Generating takes minutes. Fetching an existing CC0 model takes seconds, and lands in the same folder with the same id rules:
+
+```bash
+python3 layers/assets/src/assets.py search --query "chair wood" --limit 5
+python3 layers/assets/src/assets.py fetch --id painted_wooden_chair_01 --out-dir out
+```
+
+Poly Haven only: a few hundred models, every one CC0, so nothing you hand the user carries an attribution obligation. Search first for generic props (a chair, a barrel, a lantern), generate for anything specific to the user's idea. threejsassets.com has no API and forbids automated access, so it cannot be used from here.
+
 <a id="preview"></a>
 ## Preview
 
@@ -125,7 +138,7 @@ The same capabilities over stdio, for a client that is not this shell:
 python3 layers/mcp/src/server.py --out-dir out
 ```
 
-Tools: `generate_model`, `generate_image`, `rig_model`, `list_models`, `get_preview`, `download_glb`. Every one returns an id, a path and a preview URL; none of them return bytes, because a 20 MB GLB is three hundred times a client's result budget. `generate_model` takes `rig: "humanoid"` to chain both stages in one call, and emits progress notifications while it runs so the client's idle timer stays alive.
+Tools: `generate_model`, `generate_image`, `rig_model`, `list_models`, `get_preview`, `search_assets`, `fetch_asset`, `download_glb`. Every one returns an id, a path and a preview URL; none of them return bytes, because a 20 MB GLB is three hundred times a client's result budget. `generate_model` takes `rig: "humanoid"` to chain both stages in one call, and emits progress notifications while it runs so the client's idle timer stays alive.
 
 Register it in `.mcp.json` (already in this repo):
 

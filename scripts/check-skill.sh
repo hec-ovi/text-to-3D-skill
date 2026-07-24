@@ -22,7 +22,7 @@ for f in "${COPIES[@]}"; do
 done
 
 # The resolver table is the entry point: every id in it must have its section.
-for id in generate lowpoly rig preview mcp batch; do
+for id in generate lowpoly rig assets preview mcp batch; do
   grep -qF "<a id=\"$id\"></a>" "$ROOT" || err "$ROOT has no section anchored at $id"
 done
 grep -q '^| `generate` |' "$ROOT" || err "$ROOT has no capability table"

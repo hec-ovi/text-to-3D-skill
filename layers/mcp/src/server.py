@@ -37,6 +37,7 @@ TOOLS_SCHEMA = os.path.join(LAYER, "schema", "tool_result.json")
 PIPELINE = os.environ.get("T2M_PIPELINE") or os.path.join(LAYERS, "pipeline", "src", "pipeline.py")
 TEXT2IMAGE = os.environ.get("T2M_TEXT2IMAGE") or os.path.join(LAYERS, "text2image", "src", "klein.py")
 RIG = os.environ.get("T2M_RIG") or os.path.join(LAYERS, "rig", "src", "rig.py")
+ASSETS = os.environ.get("T2M_ASSETS") or os.path.join(LAYERS, "assets", "src", "assets.py")
 
 PROTOCOL_VERSION = "2025-11-25"
 CONTRACT_VERSION = "1.0"
@@ -153,6 +154,42 @@ TOOLS = [
             "properties": {"id": {"type": "string"}},
         },
         "annotations": {"readOnlyHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "search_assets",
+        "title": "Search the CC0 asset library",
+        "description": ("Look for an existing model before generating one. Poly Haven, a few "
+                        "hundred CC0 models, no attribution required and redistribution "
+                        "allowed. Returns ids to pass to fetch_asset. Generating takes "
+                        "minutes; fetching takes seconds, so search first when a stock prop "
+                        "would do."),
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "query": {"type": "string", "description": "Words matched against name, tags and categories."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 20},
+            },
+        },
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "fetch_asset",
+        "title": "Fetch a library asset",
+        "description": ("Download one asset by its library id and convert it to a single GLB "
+                        "in the output directory, where it behaves like anything generated "
+                        "here: same id rules, same viewer, riggable as a prop."),
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["id"],
+            "properties": {
+                "id": {"type": "string", "description": "Asset id from search_assets."},
+                "resolution": {"type": "string", "enum": ["1k", "2k", "4k"], "default": "1k"},
+            },
+        },
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": True},
     },
     {
         "name": "download_glb",
@@ -307,6 +344,22 @@ class Toolkit:
                            {"subject": result["subject"],
                             "bones": len(result["skeleton"]["bones"]),
                             "clips": [a["name"] for a in result["animations"]]})
+
+    def search_assets(self, args):
+        cmd = ["search", "--limit", str(args.get("limit", 20))]
+        if args.get("query"):
+            cmd += ["--query", args["query"]]
+        result = self._run(ASSETS, cmd, timeout=120)
+        return {"source": result["source"], "query": result.get("query", ""),
+                "total": result["total"], "assets": result["assets"]}
+
+    def fetch_asset(self, args):
+        cmd = ["fetch", "--id", args["id"], "--out-dir", self.out_dir,
+               "--resolution", args.get("resolution", "1k")]
+        result = self._run(ASSETS, cmd, timeout=600)
+        return self._asset(result["glb"]["uri"],
+                           {"source": result["source"], "license": result["license"],
+                            "libraryId": result["id"]})
 
     def list_models(self, args):
         needle = (args.get("filter") or "").lower()

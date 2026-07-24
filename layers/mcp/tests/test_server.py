@@ -155,7 +155,8 @@ def test_every_tool_declares_a_schema_and_its_hints(client):
     tools = session.request("tools/list")["result"]["tools"]
     names = [t["name"] for t in tools]
     assert names == ["generate_model", "generate_image", "rig_model",
-                     "list_models", "get_preview", "download_glb"]
+                     "list_models", "get_preview", "search_assets",
+                     "fetch_asset", "download_glb"]
     for tool in tools:
         assert tool["inputSchema"]["type"] == "object"
         assert tool["description"]
@@ -163,8 +164,9 @@ def test_every_tool_declares_a_schema_and_its_hints(client):
     by_name = {t["name"]: t for t in tools}
     assert by_name["list_models"]["annotations"]["readOnlyHint"] is True
     assert by_name["generate_model"]["annotations"]["readOnlyHint"] is False
-    # Nothing here reaches outside this machine.
-    assert all(t["annotations"].get("openWorldHint") is False for t in tools)
+    # Only the two library tools reach off this machine.
+    reaching = {t["name"] for t in tools if t["annotations"].get("openWorldHint")}
+    assert reaching == {"search_assets", "fetch_asset"}
 
 
 # ---- the tools --------------------------------------------------------------
@@ -407,3 +409,53 @@ def test_generate_then_rig_chains_through_one_call(tmp_path):
     assert payload["bones"] == 1
     argv = json.load(open(rig_argv))
     assert argv[argv.index("--subject") + 1] == "humanoid"
+
+
+def test_search_assets_passes_the_query_through_and_returns_ids(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    library, argv_path = stub_cli(tmp_path, "assets", {
+        "contractVersion": "1.0", "source": "polyhaven", "query": "chair", "total": 2,
+        "assets": [{"id": "painted_wooden_chair_01", "name": "Painted Wooden Chair 01",
+                    "license": "CC0", "thumbnailUrl": "https://example/x.png"}],
+        "elapsedMs": 120,
+    })
+
+    session = Client(out, env={"T2M_ASSETS": library})
+    try:
+        result = session.call("search_assets", {"query": "chair", "limit": 5})["result"]
+    finally:
+        session.close()
+
+    payload = result["structuredContent"]
+    assert payload["total"] == 2
+    assert payload["assets"][0]["id"] == "painted_wooden_chair_01"
+    argv = json.load(open(argv_path))
+    assert argv[0] == "search"
+    assert argv[argv.index("--query") + 1] == "chair"
+    assert argv[argv.index("--limit") + 1] == "5"
+
+
+def test_fetch_asset_lands_in_the_output_directory_with_a_preview_url(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    glb = out / "chair-polyhaven.glb"
+    library, argv_path = stub_cli(tmp_path, "assets", {
+        "contractVersion": "1.0", "source": "polyhaven", "id": "chair",
+        "glb": {"uri": str(glb), "mediaType": "model/gltf-binary", "byteSize": 1,
+                "checksum": {"sha256": "0" * 64}},
+        "license": "CC0", "elapsedMs": 6090,
+    }, artifact=str(glb))
+
+    session = Client(out, env={"T2M_ASSETS": library})
+    try:
+        result = session.call("fetch_asset", {"id": "chair", "resolution": "2k"})["result"]
+    finally:
+        session.close()
+
+    payload = result["structuredContent"]
+    assert payload["id"] == "chair-polyhaven"
+    assert payload["license"] == "CC0"
+    assert payload["previewUrl"] == "http://127.0.0.1:8190/?id=chair-polyhaven"
+    argv = json.load(open(argv_path))
+    assert argv[argv.index("--resolution") + 1] == "2k"

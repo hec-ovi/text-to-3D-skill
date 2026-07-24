@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "assets/fetch_request.json",
+  "title": "AssetFetchRequest",
+  "description": "Params in for downloading one asset and converting it to a GLB.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "outDir"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "id": { "type": "string", "minLength": 1, "description": "Asset id from a search." },
+    "outDir": { "type": "string", "description": "Where the GLB lands. Point it at the same directory the preview serves." },
+    "resolution": { "type": "string", "enum": ["1k", "2k", "4k"], "default": "1k", "description": "Texture resolution. 1k keeps a fetch under a few megabytes." },
+    "endpoint": { "type": "string", "default": "https://api.polyhaven.com" },
+    "blenderPath": { "type": "string", "description": "Blender executable. Omit to search $BLENDER, then the usual places." },
+    "timeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 1800, "default": 300 }
+  }
+}

@@ -14,7 +14,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LAYERS=("text2image" "image2mesh" "pipeline" "rig" "mcp" "preview")
+LAYERS=("text2image" "image2mesh" "pipeline" "rig" "assets" "mcp" "preview")
 [ $# -gt 0 ] && LAYERS=("$@")
 
 if command -v uvx >/dev/null 2>&1; then

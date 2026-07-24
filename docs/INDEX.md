@@ -12,6 +12,7 @@ Each layer is a blackbox. Open one folder, read its `CONTRACT.md` and `schema/`,
 | Skeletons, skinning weights, the walk cycle, prop sockets | [`layers/rig/`](../layers/rig/CONTRACT.md) | anything that generates meshes |
 | The viewer: controls, lighting, framing, rotation, the model list API | [`layers/preview/`](../layers/preview/CONTRACT.md) | anything that generates assets |
 | The MCP tools, their schemas, what a tool result carries | [`layers/mcp/`](../layers/mcp/CONTRACT.md) | the layers it fronts |
+| Searching or fetching a stock CC0 model, and the licence rules | [`layers/assets/`](../layers/assets/CONTRACT.md) | anything that generates meshes |
 | What an agent is told about this skill | [`SKILL.md`](../SKILL.md), then `scripts/sync-skill.sh` | the install copies, which are generated |
 | How the skill is packaged and installed | [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) | |
 | Fetching or verifying weights | [`scripts/fetch-models.sh`](../scripts/fetch-models.sh) | |
@@ -37,6 +38,7 @@ TextToMeshRequest -> [pipeline]
 - **pipeline** owns the order and the error wrapping, and imports from neither.
 - **rig** owns skeletons, skinning and clips, and takes any GLB, not only ones this repo made.
 - **preview** owns showing a GLB to a human, and reads a directory of files without knowing what made them.
+- **assets** owns the third-party library and its licence terms, and hands back the same GLB-by-reference shape as everything else.
 - **mcp** owns the protocol surface, runs the other layers as subprocesses, and imports none of them.
 
 `RigResult.glb` is shape-compatible with `MeshResult.glb` on purpose: a rigged asset is still just a GLB by reference, so the preview layer and any caller handle both the same way.
