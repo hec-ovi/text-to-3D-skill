@@ -198,8 +198,21 @@ Every failure is a JSON envelope on stderr with a code from a closed set. Read `
 | `BLENDER_MISSING` | Rigging only. Install Blender 5.x or set `$BLENDER`. |
 | `RIG_FAILED` + "bone heat" | The mesh is too dirty or its limbs are fused. Decimate harder, or regenerate. |
 
+## Faces, and what the ceiling actually is
+
+A generated character's face will not survive close inspection, and no knob here fixes that. Measured on this box: the same subject at 296590 triangles and at 8000 triangles has the same melted face, eyes smeared into dark patches and the mouth a red smudge. The detail is lost in the reconstruction, not in the decimation, so raising `--target-faces` buys nothing for the face.
+
+The cause is scale. TRELLIS sees one view; the head is roughly an eighth of the figure's height, so at res 1024 the whole head falls in a hundred-odd voxels and the atlas gives the face the share of its texels that its surface area earns, which is a few percent. `--tex-res 1024 --atlas 4096` is the best configuration available and it improves the skin, not the features.
+
+What to do instead, in order of how well it works:
+
+- **Frame the character so the face is not the point.** A closed helmet, a hood, a mask, a visor. Ask for it in the prompt; it reads as a design choice rather than a defect.
+- **Ask for a stylised or low-poly character** rather than a photoreal one. A flat-shaded face has no features to get wrong, which is why the reference look works at 5000 triangles.
+- **Keep the camera off the face.** These assets hold up at gameplay distance and fall apart in a portrait.
+
 ## What this skill will not do
 
 - Multi-object scenes. TRELLIS.2 reconstructs one subject; a prompt with two things gets you one confused thing.
+- A photoreal face. See above: the reconstruction cannot resolve one at body scale, at any triangle count.
 - Edit an existing mesh, or rig anything that is not one upright figure or one prop.
 - Run without a GPU. `--require-gpu` is always passed to the engine, so there is no silent CPU path that takes half an hour.

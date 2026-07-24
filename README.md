@@ -176,6 +176,7 @@ The preview layer's share is 30 HTTP tests against a real server, plus 27 DOM te
 ## Limits
 
 - One object per prompt. TRELLIS.2 reconstructs a single subject; ask for two things and you get one confused thing.
+- Faces do not survive close inspection. The same character at 296590 triangles and at 8000 has the same melted face, so this is the reconstruction's ceiling rather than the decimation's: the head is an eighth of the figure and gets the texels its surface area earns. Helmets, hoods and stylised characters are the way around it.
 - Rigging covers one upright humanoid or one prop. No quadrupeds, no vehicles, no faces or fingers, and no editing an existing mesh.
 - No CPU path. `--require-gpu` is always passed, so a missing Vulkan device is an error rather than a twenty-minute fallback.
 - Tested on one machine, the gfx1151 box described in [`layers/image2mesh/bench/README.md`](layers/image2mesh/bench/README.md).
