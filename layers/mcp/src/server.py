@@ -371,7 +371,8 @@ class Toolkit:
     def get_preview(self, args):
         model = self.resolve(args["id"])
         payload = self._asset(model["path"])
-        stem = re.sub(r"-r\d+$", "", os.path.splitext(model["name"])[0])
+        stem = re.sub(r"-r\d+$", "", re.sub(r"-rigged$", "",
+                                            os.path.splitext(model["name"])[0]))
         for ext in (".png", ".jpg", ".jpeg", ".webp"):
             candidate = os.path.join(self.out_dir, stem + ext)
             if os.path.isfile(candidate):

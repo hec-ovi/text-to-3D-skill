@@ -56,7 +56,11 @@ CHUNK_JSON = 0x4E4F534A
 
 # image2mesh names its output <image-stem>-r<resolution>.glb, so the picture a
 # mesh came from is derivable rather than something to guess at.
-SOURCE_SUFFIX = re.compile(r"-r\d+$")
+# <stem>-r<res>.glb comes from <stem>.png, and the rig layer appends -rigged to
+# that name, so a rigged asset sheds both suffixes to find its picture. They are
+# stripped one at a time, outermost first: one optional-everything pattern would
+# happily match the empty string at position zero and change nothing.
+SOURCE_SUFFIXES = (re.compile(r"-rigged$"), re.compile(r"-r\d+$"))
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg",
                ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
@@ -96,7 +100,9 @@ def find_source(directory, glb_name):
     `<stem>-r<res>_base.png` texture atlas out of this: that file is an output,
     and showing it as the source would misrepresent what the mesh came from.
     """
-    stem = SOURCE_SUFFIX.sub("", os.path.splitext(glb_name)[0])
+    stem = os.path.splitext(glb_name)[0]
+    for suffix in SOURCE_SUFFIXES:
+        stem = suffix.sub("", stem)
     if not stem:
         return None
     for ext, media in IMAGE_TYPES.items():

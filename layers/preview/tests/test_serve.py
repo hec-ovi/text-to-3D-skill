@@ -403,6 +403,15 @@ def test_the_image_a_mesh_came_from_is_paired_by_name(server):
     assert (source["width"], source["height"]) == (1024, 1024)
 
 
+def test_a_rigged_asset_still_finds_the_image_it_came_from(server):
+    base, directory = server
+    (directory / "hero.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+    (directory / "hero-r1024-rigged.glb").write_bytes(make_glb(animations=["walk"], joints=19))
+
+    entry = json.loads(get(base + "/api/models")[1])["models"][0]
+    assert entry["source"]["name"] == "hero.png"
+
+
 def test_pairing_works_at_every_resolution(server):
     base, directory = server
     (directory / "thing.png").write_bytes(png_bytes())
