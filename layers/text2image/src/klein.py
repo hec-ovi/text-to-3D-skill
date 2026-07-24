@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import struct
 import sys
 import time
@@ -39,12 +40,61 @@ N_POSITIVE, N_LATENT, N_SCHEDULER, N_NOISE = "4", "6", "7", "9"
 # TRELLIS reconstructs one object and removes the background first. A clean,
 # centred, evenly lit subject on a flat backdrop is what survives that step;
 # scenes, crops and cast shadows do not.
-FRAMING = (
+OBJECT_FRAMING = (
     "{subject}, a single complete object centred in frame, full object visible with "
     "nothing cropped, three-quarter view, even diffuse studio lighting, flat plain "
     "light grey background, no cast shadow on the background, no other objects, "
     "no text, no watermark, sharp focus, product photograph"
 )
+
+# A person is not a product. Two things go wrong when a character is framed like
+# one: a three-quarter view hides half the face from the reconstruction, and an
+# unspecified stance comes out mid-action, which the rig then binds as the rest
+# pose so every clip plays on top of it. This asks for the pose a rigger wants
+# and puts the face where the camera can resolve it.
+# Every clause here is load-bearing. The A-pose and the clear gap between arm and
+# torso are what bone heat needs: a fused arm diffuses weight across the join and
+# drags the body with it. The front view is what a face needs, because the
+# reconstructor sees exactly one view and invents whatever the camera hid. The
+# soft key light is a compromise: fully flat light bakes cleanly but removes the
+# shading gradient a single view uses to infer brow, nose and cheek relief.
+CHARACTER_FRAMING = (
+    "{subject}, standing in a neutral A-pose facing the camera directly, feet flat "
+    "on the ground and shoulder width apart, legs straight, arms straight and held "
+    "away from the body with a clear gap between the arms and the torso, palms "
+    "facing in, head level and looking straight ahead, face clearly visible and "
+    "unobstructed, sharp detailed eyes, natural skin, symmetrical, full body "
+    "visible from head to feet, soft key light from the front with gentle fill, "
+    "plain light grey backdrop, empty background, sharp focus, character reference "
+    "sheet, front view"
+)
+
+# Words that mean the subject is a person or creature that will be rigged. The
+# cost of a wrong guess is asymmetric: character framing on a prop only wastes a
+# few tokens, product framing on a person hides the face and bakes in a pose.
+CHARACTER_WORDS = (
+    "man", "male", "woman", "female", "boy", "girl", "person", "human", "guy",
+    "lady", "character", "warrior", "knight", "soldier", "wizard", "mage",
+    "witch", "elf", "orc", "dwarf", "goblin", "hero", "heroine", "villain",
+    "ninja", "samurai", "pirate", "viking", "barbarian", "archer", "ranger",
+    "paladin", "monk", "priest", "king", "queen", "prince", "princess",
+    "guard", "adventurer", "explorer", "astronaut", "robot", "android",
+    "zombie", "skeleton", "demon", "angel", "fairy", "monster", "creature",
+)
+
+
+def looks_like_a_character(subject):
+    """True when the subject reads as something with a face and limbs."""
+    words = re.findall(r"[a-z]+", subject.lower())
+    return any(word in CHARACTER_WORDS for word in words)
+
+
+def frame(subject, kind="auto"):
+    """Wrap a subject in the framing its kind needs. Returns (prompt, kind)."""
+    if kind == "auto":
+        kind = "character" if looks_like_a_character(subject) else "object"
+    template = CHARACTER_FRAMING if kind == "character" else OBJECT_FRAMING
+    return template.format(subject=subject), kind
 
 
 class RenderError(Exception):
@@ -115,7 +165,10 @@ def render(request, template_path=None):
     req = with_defaults(request, req_schema)
 
     subject = req["prompt"].strip()
-    prompt = subject if req.get("rawPrompt") else FRAMING.format(subject=subject)
+    if req.get("rawPrompt"):
+        prompt, kind = subject, "raw"
+    else:
+        prompt, kind = frame(subject, req["framing"])
     seed = req.get("seed", seed_for(prompt))
     endpoint = req["endpoint"].rstrip("/")
     out_dir = req.get("outDir") or os.getcwd()
@@ -165,6 +218,7 @@ def render(request, template_path=None):
             "height": height,
         },
         "seed": seed,
+        "framing": kind,
         "promptSent": prompt,
         "model": {
             "unet": template["1"]["inputs"]["unet_name"],
@@ -219,6 +273,7 @@ def main(argv=None):
     parser.add_argument("--height", type=int, default=1024)
     parser.add_argument("--steps", type=int, default=4)
     parser.add_argument("--endpoint", default=os.environ.get("COMFY_URL", "http://127.0.0.1:8188"))
+    parser.add_argument("--framing", choices=["auto", "object", "character"], default="auto")
     parser.add_argument("--raw-prompt", action="store_true")
     parser.add_argument("--template")
     args = parser.parse_args(argv)
@@ -239,6 +294,8 @@ def main(argv=None):
             request["seed"] = args.seed
         if args.raw_prompt:
             request["rawPrompt"] = True
+        if args.framing != "auto":
+            request["framing"] = args.framing
     else:
         parser.error("one of --prompt or --request is required")
 

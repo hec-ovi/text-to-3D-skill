@@ -104,7 +104,7 @@ python3 layers/rig/src/rig.py --glb out/hero-r512.glb --subject humanoid --out-d
 python3 layers/rig/src/rig.py --glb out/barrel-r512.glb --subject prop --socket socket_top
 ```
 
-- **humanoid**: 19 Mixamo-named bones fitted to the mesh by measuring it (slice the mesh, find where the legs split and where the shoulders are widest), bone-heat skinning, and `idle`, `walk`, `run`, `jump` in the file. About a second on a decimated mesh.
+- **humanoid**: 19 Mixamo-named bones fitted by measuring the mesh, following each limb band by band wherever the pose put it, then bone-heat skinning and `idle`, `walk`, `run`, `jump` in the file. A second or two on a decimated mesh. A mesh that arrived in a pose is neutralised first, so a walk cycle starts from standing rather than stacking on top of a stride.
 - **prop**: no armature at all. `spin` and `bob` on the node itself, plus a named empty as an attachment point, which is what an engine wants from a barrel.
 
 Needs Blender 5.x (`$BLENDER`, `/home/hec/opt/blender-5.2.0-linux-x64/blender`, or on PATH). It will not rig a quadruped, a vehicle, or a figure whose arms are fused to its body: bone heat spreads weight across the fused bridge and the arm drags the torso. Regenerate instead.

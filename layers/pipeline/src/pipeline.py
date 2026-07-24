@@ -15,6 +15,7 @@ non-zero exit. See ../CONTRACT.md. Stdlib only.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -32,6 +33,23 @@ TEXT2IMAGE = os.path.join(LAYERS, "text2image", "src", "klein.py")
 IMAGE2MESH = os.path.join(LAYERS, "image2mesh", "src", "mesh.py")
 
 CONTRACT_VERSION = "1.1"
+
+# The pipeline picks the render shape before text2image has told it what the
+# subject is, so it needs its own cheap read of the prompt. text2image owns the
+# real decision and reports it back as `framing`; this only decides pixels.
+CHARACTER_HINTS = (
+    "man", "male", "woman", "female", "boy", "girl", "person", "human", "guy",
+    "lady", "character", "warrior", "knight", "soldier", "wizard", "mage",
+    "witch", "elf", "orc", "dwarf", "goblin", "hero", "heroine", "villain",
+    "ninja", "samurai", "pirate", "viking", "barbarian", "archer", "ranger",
+    "paladin", "monk", "priest", "king", "queen", "prince", "princess",
+    "guard", "adventurer", "explorer", "astronaut", "robot", "android",
+    "zombie", "skeleton", "demon", "angel", "fairy", "monster", "creature",
+)
+
+
+def _reads_as_character(prompt):
+    return any(word in CHARACTER_HINTS for word in re.findall(r"[a-z]+", prompt.lower()))
 
 
 class PipelineError(Exception):
@@ -89,10 +107,24 @@ def generate(request):
 
     started = time.monotonic()
 
+    # A standing figure rendered square spends half its width on empty backdrop,
+    # and the engine resizes to 1024 and then crops to the subject before the
+    # reconstructor ever sees it, so what matters is the face's pixel share of
+    # that crop. Portrait is the cheapest way to raise it. The caller's own size
+    # always wins; this only fills the gap when nothing was asked for.
+    portrait = req["framing"] == "character" or (
+        req["framing"] == "auto" and _reads_as_character(req["prompt"]))
+    asked_for_a_size = "imageSize" in request or "imageWidth" in request
+    width = req.get("imageWidth") or (832 if portrait and not asked_for_a_size
+                                      else req["imageSize"])
+    height = req.get("imageHeight") or (1216 if portrait and not asked_for_a_size
+                                        else req["imageSize"])
+
     image_request = {
         "prompt": req["prompt"],
-        "width": req["imageSize"],
-        "height": req["imageSize"],
+        "framing": req["framing"],
+        "width": width,
+        "height": height,
         "steps": req["steps"],
         "endpoint": req["comfyEndpoint"],
         "outDir": out_dir,
@@ -117,6 +149,8 @@ def generate(request):
         "backgroundRemoval": req["backgroundRemoval"],
         "seed": image_result.get("seed", 42) % 2147483647,
         **({"targetFaces": req["targetFaces"]} if req.get("targetFaces") else {}),
+        **({"textureResolution": req["textureResolution"]} if req.get("textureResolution") else {}),
+        **({"atlasPx": req["atlasPx"]} if req.get("atlasPx") else {}),
         "runner": req["runner"],
         "endpoint": req["engineEndpoint"],
         "modelsDir": req["modelsDir"],
@@ -162,11 +196,21 @@ def main(argv=None):
     parser.add_argument("--seed", type=int)
     parser.add_argument("--res", type=int, choices=[512, 1024, 1536], default=512)
     parser.add_argument("--steps", type=int, default=4)
-    parser.add_argument("--image-size", type=int, default=1024)
+    parser.add_argument("--image-size", type=int,
+                        help="square render size; a character with no size given "
+                             "renders portrait 832x1216 instead")
+    parser.add_argument("--image-width", type=int)
+    parser.add_argument("--image-height", type=int)
     parser.add_argument("--no-texture", action="store_true")
     parser.add_argument("--target-faces", type=int,
                         help="quadric simplify target in faces (default 300K at res 1024, "
                              "150K at res 512)")
+    parser.add_argument("--framing", choices=["auto", "object", "character"], default="auto",
+                        help="auto asks for a neutral A-pose when the prompt names a person")
+    parser.add_argument("--tex-res", type=int, choices=[512, 1024],
+                        help="PBR volume resolution; force 1024 when the subject has a face")
+    parser.add_argument("--atlas", type=int, choices=[512, 1024, 2048, 4096],
+                        help="UV atlas size; 4096 gives a face more texels")
     parser.add_argument("--bg-removal", choices=["auto", "threshold", "birefnet"], default="auto")
     parser.add_argument("--drop-image", action="store_true",
                         help="delete the intermediate PNG once the GLB is written")
@@ -190,7 +234,6 @@ def main(argv=None):
             "outDir": args.out_dir,
             "resolution": args.res,
             "steps": args.steps,
-            "imageSize": args.image_size,
             "texture": not args.no_texture,
             "backgroundRemoval": args.bg_removal,
             "keepImage": not args.drop_image,
@@ -204,6 +247,18 @@ def main(argv=None):
             request["seed"] = args.seed
         if args.target_faces:
             request["targetFaces"] = args.target_faces
+        if args.framing != "auto":
+            request["framing"] = args.framing
+        if args.image_size:
+            request["imageSize"] = args.image_size
+        if args.image_width:
+            request["imageWidth"] = args.image_width
+        if args.image_height:
+            request["imageHeight"] = args.image_height
+        if args.tex_res:
+            request["textureResolution"] = args.tex_res
+        if args.atlas:
+            request["atlasPx"] = args.atlas
         if args.engine_path:
             request["enginePath"] = args.engine_path
     else:

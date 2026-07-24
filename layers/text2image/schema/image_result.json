@@ -26,6 +26,7 @@
         "height": { "type": "integer", "minimum": 1 }
       }
     },
+    "framing": { "type": "string", "enum": ["object", "character", "raw"], "description": "The framing that was applied, after auto-detection. Reported so a caller can see why a character came out posed the way it did." },
     "seed": { "type": "integer", "minimum": 0 },
     "promptSent": { "type": "string", "description": "The exact positive prompt handed to the sampler, after framing." },
     "model": {

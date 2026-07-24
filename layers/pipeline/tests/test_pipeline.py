@@ -133,6 +133,67 @@ def test_without_target_faces_the_engine_picks_its_own(tmp_path):
     assert "--target-faces" not in json.loads(argv_path.read_text())
 
 
+def test_texture_knobs_reach_the_engine(tmp_path):
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a knight", "--res", "1024", "--tex-res", "1024",
+                "--atlas", "4096", *base_args(tmp_path, comfy, engine))
+    flat = " ".join(json.loads(argv_path.read_text()))
+    assert "--tex-res 1024" in flat
+    assert "--atlas 4096" in flat
+
+
+def test_a_character_prompt_reaches_comfy_in_a_rig_ready_pose(tmp_path):
+    engine, _ = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a female elf archer", *base_args(tmp_path, comfy, engine))
+        sent = comfy.graphs[0]["4"]["inputs"]["text"]
+    assert "neutral A-pose" in sent
+    assert "product photograph" not in sent
+
+
+def test_framing_can_be_forced_from_the_pipeline(tmp_path):
+    engine, _ = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a knight helmet on a stand", "--framing", "object",
+                *base_args(tmp_path, comfy, engine))
+        sent = comfy.graphs[0]["4"]["inputs"]["text"]
+    assert "product photograph" in sent
+    assert "A-pose" not in sent
+
+
+def test_a_character_renders_portrait_by_default(tmp_path):
+    """A standing figure in a square frame spends half its pixels on backdrop,
+    and the face reaches the reconstructor smaller for it."""
+    engine, _ = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a female elf archer", *base_args(tmp_path, comfy, engine))
+        graph = comfy.graphs[0]
+    assert (graph["6"]["inputs"]["width"], graph["6"]["inputs"]["height"]) == (832, 1216)
+
+
+def test_a_prop_still_renders_square(tmp_path):
+    engine, _ = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a wooden barrel", *base_args(tmp_path, comfy, engine))
+        graph = comfy.graphs[0]
+    assert (graph["6"]["inputs"]["width"], graph["6"]["inputs"]["height"]) == (1024, 1024)
+
+
+def test_an_explicit_size_wins_over_the_character_default(tmp_path):
+    engine, _ = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a viking warrior", "--image-size", "1024",
+                *base_args(tmp_path, comfy, engine))
+        square = comfy.graphs[0]
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a viking warrior", "--image-width", "768",
+                "--image-height", "1280", *base_args(tmp_path, comfy, engine))
+        tall = comfy.graphs[0]
+    assert (square["6"]["inputs"]["width"], square["6"]["inputs"]["height"]) == (1024, 1024)
+    assert (tall["6"]["inputs"]["width"], tall["6"]["inputs"]["height"]) == (768, 1280)
+
+
 def test_steps_and_image_size_reach_comfy(tmp_path):
     engine, _ = fake_engine(tmp_path)
     with StubComfy() as comfy:

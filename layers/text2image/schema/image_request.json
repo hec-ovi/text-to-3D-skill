@@ -13,6 +13,12 @@
       "minLength": 1,
       "description": "Subject description. The layer wraps it in a single-object framing template unless rawPrompt is true."
     },
+    "framing": {
+      "type": "string",
+      "enum": ["auto", "object", "character"],
+      "default": "auto",
+      "description": "Which framing template wraps the subject. auto reads the subject for words that mean a person or creature. character asks for a neutral A-pose facing the camera, which is the pose a rig needs and the view a face survives; object asks for a three-quarter product shot. Ignored when rawPrompt is true."
+    },
     "rawPrompt": {
       "type": "boolean",
       "default": false,
@@ -26,7 +32,7 @@
     },
     "width":  { "type": "integer", "minimum": 256, "maximum": 2048, "multipleOf": 16, "default": 1024 },
     "height": { "type": "integer", "minimum": 256, "maximum": 2048, "multipleOf": 16, "default": 1024 },
-    "steps":  { "type": "integer", "minimum": 1, "maximum": 50, "default": 4 },
+    "steps": { "type": "integer", "minimum": 1, "maximum": 8, "default": 4, "description": "FLUX.2 klein is distilled for 4 steps. More does not buy detail: the distilled endpoint ignores the parameter upstream, and pushing it produces a waxy, overcooked image. The ceiling is 8 so a caller can experiment without wrecking a render." },
     "endpoint": {
       "type": "string",
       "format": "uri",

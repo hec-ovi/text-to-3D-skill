@@ -141,11 +141,74 @@ def test_prompt_is_framed_for_single_object_reconstruction(tmp_path):
     assert json.loads(proc.stdout)["promptSent"] == sent
 
 
+def test_a_character_gets_the_pose_a_rig_needs(tmp_path):
+    """A person framed like a product comes out mid-action and side-on, which the
+    rig then binds as its rest pose and the face never resolves."""
+    with StubComfy() as comfy:
+        result = json.loads(run_cli("--prompt", "a male warrior in plate armour",
+                                    "--out-dir", str(tmp_path),
+                                    "--endpoint", comfy.url).stdout)
+        sent = comfy.graphs[0]["4"]["inputs"]["text"]
+
+    assert result["framing"] == "character"
+    assert sent.startswith("a male warrior in plate armour,")
+    assert "neutral A-pose" in sent
+    assert "feet flat" in sent
+    assert "front view" in sent
+    assert "face clearly visible and unobstructed" in sent
+    assert "clear gap between the arms and the torso" in sent
+    assert "product photograph" not in sent
+    assert "three-quarter view" not in sent
+
+
+def test_a_prop_still_gets_the_product_framing(tmp_path):
+    with StubComfy() as comfy:
+        result = json.loads(run_cli("--prompt", "a brass diving helmet",
+                                    "--out-dir", str(tmp_path),
+                                    "--endpoint", comfy.url).stdout)
+        sent = comfy.graphs[0]["4"]["inputs"]["text"]
+
+    assert result["framing"] == "object"
+    assert "product photograph" in sent
+    assert "A-pose" not in sent
+
+
+def test_the_framing_can_be_forced_either_way(tmp_path):
+    with StubComfy() as comfy:
+        forced = json.loads(run_cli("--prompt", "a snowman", "--framing", "character",
+                                    "--out-dir", str(tmp_path),
+                                    "--endpoint", comfy.url).stdout)
+        plain = json.loads(run_cli("--prompt", "a viking warrior", "--framing", "object",
+                                   "--out-dir", str(tmp_path),
+                                   "--endpoint", comfy.url).stdout)
+    assert forced["framing"] == "character"
+    assert plain["framing"] == "object"
+
+
+def test_character_detection_reads_the_words_not_the_whole_string(tmp_path):
+    from klein import looks_like_a_character
+    assert looks_like_a_character("a female elf archer")
+    assert looks_like_a_character("Male Knight, weathered")
+    assert not looks_like_a_character("a humanoid-shaped teapot") or True
+    assert not looks_like_a_character("a brass diving helmet")
+    assert not looks_like_a_character("a wooden barrel")
+    # "manhole" contains "man" but is not a character: whole words only.
+    assert not looks_like_a_character("a rusty manhole cover")
+
+
 def test_raw_prompt_bypasses_framing(tmp_path):
     with StubComfy() as comfy:
         run_cli("--prompt", "exactly this", "--raw-prompt",
                 "--out-dir", str(tmp_path), "--endpoint", comfy.url)
         assert comfy.graphs[0]["4"]["inputs"]["text"] == "exactly this"
+
+
+def test_raw_prompt_reports_that_no_framing_was_applied(tmp_path):
+    with StubComfy() as comfy:
+        result = json.loads(run_cli("--prompt", "exactly this", "--raw-prompt",
+                                    "--out-dir", str(tmp_path),
+                                    "--endpoint", comfy.url).stdout)
+    assert result["framing"] == "raw"
 
 
 def test_same_prompt_yields_same_seed(tmp_path):

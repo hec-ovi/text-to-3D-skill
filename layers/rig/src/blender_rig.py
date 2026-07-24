@@ -29,6 +29,9 @@ import sys
 import bpy
 import mathutils
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fit  # noqa: E402
+
 
 # ---- small geometry helpers -------------------------------------------------
 
@@ -108,12 +111,14 @@ def measure(mesh_object, slices=48):
         shoulder_y = max(upper, key=lambda cb: cb[1]["width"])[0]
 
     reach = max(abs(min(xs)), abs(max(xs)))
+    measured = fit.limbs([(v.x, v.y, v.z) for v in verts], slices)
     return {
+        "chains": measured["chains"],
         "low": low, "high": high, "height": height,
         "centreX": (min(xs) + max(xs)) / 2,
         "centreZ": (min(zs) + max(zs)) / 2,
-        "crotch": crotch,
-        "shoulderY": shoulder_y,
+        "crotch": measured["crotch"],
+        "shoulderY": measured["shoulderY"],
         "shoulderX": max(height * 0.08, (max(xs) - min(xs)) * 0.13),
         "reach": reach,
         "leftFootX": left_foot,
@@ -126,8 +131,13 @@ def measure(mesh_object, slices=48):
 
 # Mixamo naming, because it is what the free CC0 clip libraries and every
 # retargeting tool already speak. See ../CONTRACT.md.
-def humanoid_bones(m):
-    """(name, parent, head, tail) in Y-up metres, from the measurements."""
+def canonical_bones(m):
+    """The templated skeleton: legs straight down, arms straight out.
+
+    Two jobs. It is the fallback for a limb the measurement could not find, and
+    it is the neutral target every clip is corrected towards, so a character
+    bound mid-stride still starts its walk cycle standing still.
+    """
     h = m["height"]
     cx, cz = m["centreX"], m["centreZ"]
     hip_y = m["crotch"] + h * 0.06
@@ -178,6 +188,74 @@ def humanoid_bones(m):
     return bones
 
 
+def chain_bones(names, parent, axis, split, min_len):
+    """A bone per segment along a measured axis, head to tail, no gaps.
+
+    `split` is the arclength fraction where the chain bends (knee, elbow). A
+    zero-length bone is silently dropped by Blender and would then be missing
+    from the rig without anything failing, so every segment is given a floor.
+    """
+    cuts = [0.0, split, 1.0] if len(names) == 2 else [0.0, split, (1.0 + split) / 2, 1.0]
+    points = [fit.sample_at(axis, u) for u in cuts]
+    out, previous = [], parent
+    for name, head, tail in zip(names, points, points[1:]):
+        length = math.dist(head, tail)
+        if length < min_len:
+            direction = [(tail[i] - head[i]) / (length or 1.0) for i in range(3)]
+            if length == 0:
+                direction = [0.0, -1.0, 0.0]
+            tail = tuple(head[i] + direction[i] * min_len for i in range(3))
+        full = f"mixamorig:{name}"
+        out.append((full, previous, tuple(head), tuple(tail)))
+        previous = full
+    return out
+
+
+def humanoid_bones(m):
+    """The canonical skeleton, with every limb the measurement found replacing
+    its templated stand-in. Per limb, not all or nothing: a measured leg and a
+    templated arm is a better rig than reverting both."""
+    bones = canonical_bones(m)
+    chains = m.get("chains") or {}
+    min_len = m["height"] * 0.01
+    replaced = []
+
+    for side in ("Left", "Right"):
+        leg = chains.get(f"{side}Leg")
+        if leg and len(leg["axis"]) >= 3:
+            names = [f"{side}UpLeg", f"{side}Leg", f"{side}Foot"]
+            split, deviation = leg["bend"]
+            if deviation < min_len:
+                split = 0.55
+            bones = [b for b in bones if b[0] not in {f"mixamorig:{n}" for n in names}]
+            bones += chain_bones(names, "mixamorig:Hips", leg["axis"], split, min_len)
+            replaced.append(names[0])
+
+        arm = chains.get(f"{side}Arm")
+        if arm and len(arm["axis"]) >= 3:
+            names = [f"{side}Arm", f"{side}ForeArm", f"{side}Hand"]
+            split, deviation = arm["bend"]
+            if deviation < min_len:
+                split = 0.5
+            bones = [b for b in bones if b[0] not in {f"mixamorig:{n}" for n in names}]
+            bones += chain_bones(names, f"mixamorig:{side}Shoulder", arm["axis"], split, min_len)
+            replaced.append(names[0])
+
+    m["measuredLimbs"] = replaced
+    # Parents must exist before their children, and the replacements were
+    # appended at the end.
+    order = {name: i for i, (name, *_rest) in enumerate(bones)}
+
+    def depth(bone):
+        steps, parent = 0, bone[1]
+        while parent is not None and steps < 10:
+            steps += 1
+            parent = next((b[1] for b in bones if b[0] == parent), None)
+        return steps
+
+    return sorted(bones, key=lambda b: (depth(b), order[b[0]]))
+
+
 def build_armature(bones, name="Armature"):
     armature = bpy.data.armatures.new(name)
     rig = bpy.data.objects.new(name, armature)
@@ -191,6 +269,13 @@ def build_armature(bones, name="Armature"):
         # Back to Blender's Z-up frame: (x, y, z)_gltf -> (x, -z, y)_blender.
         bone.head = (head[0], -head[2], head[1])
         bone.tail = (tail[0], -tail[2], tail[1])
+        # Roll decides what a rotation about the bone's local X actually does.
+        # Left to itself, a leg fitted pointing down AND outwards gets a local
+        # frame tilted with it, and a walk cycle authored as an X swing throws
+        # the leg sideways instead of forward. Aligning every bone's roll to
+        # world forward gives the whole skeleton one sagittal plane to swing in,
+        # whatever pose it was measured from.
+        bone.align_roll(mathutils.Vector((0.0, -1.0, 0.0)))
         if parent:
             bone.parent = made[parent]
             bone.use_connect = False
@@ -211,13 +296,75 @@ def _euler(degrees):
     return mathutils.Euler([math.radians(d) for d in degrees], "XYZ").to_quaternion()
 
 
-def keyframe(rig, frame, pose):
+IDENTITY = mathutils.Quaternion((1.0, 0.0, 0.0, 0.0))
+
+# How far a single bone may be rotated to reach the neutral stance. A stride is
+# tens of degrees; anything past these caps means the fit went wrong, and
+# straightening that far would tear the mesh rather than pose it.
+CORRECTION_CAPS = {"UpLeg": 55.0, "Leg": 55.0, "Foot": 40.0, "Arm": 70.0,
+                   "ForeArm": 70.0, "Hand": 40.0, "Shoulder": 30.0,
+                   "Spine": 25.0, "Spine1": 25.0, "Neck": 25.0, "Head": 25.0,
+                   "Hips": 20.0}
+
+
+def rest_rotations(rig):
+    """Each bone's rest orientation relative to its parent, as a quaternion."""
+    out = {}
+    for bone in rig.data.bones:
+        local = bone.matrix_local.to_3x3()
+        if bone.parent:
+            local = bone.parent.matrix_local.to_3x3().inverted() @ local
+        out[bone.name] = local.to_quaternion()
+    return out
+
+
+def bind_corrections(fitted, canonical_list):
+    """Per bone, the rotation that takes the fitted rest pose to the canonical one.
+
+    Blender composes a pose bone as rest_local @ basis, and the clips write the
+    basis. Pre-multiplying this correction into every key gives
+    rest_fit @ (C @ B) = rest_canonical @ B, so an authored key lands in the pose
+    the canonical skeleton would have held. An identity key is then a neutral
+    stance, whatever pose the mesh was captured in: the stride is cancelled
+    before the walk's swing is added rather than stacking on top of it.
+
+    The canonical rest set is read from a real armature built by the same code
+    with the same roll convention, because deriving it by hand is how the two
+    frames silently drift apart.
+    """
+    probe = build_armature(canonical_list, name="__canonical")
+    canonical = rest_rotations(probe)
+    bpy.data.objects.remove(probe, do_unlink=True)
+
+    fit_rest = rest_rotations(fitted)
+    corrections, report = {}, {}
+    for name, rest in fit_rest.items():
+        if name not in canonical:
+            continue
+        turn = rest.inverted() @ canonical[name]
+        angle = math.degrees(min(abs(turn.angle), 2 * math.pi - abs(turn.angle)))
+        cap = next((v for k, v in CORRECTION_CAPS.items() if name.endswith(k)), 45.0)
+        if angle > cap:
+            # Clamp rather than drop: half a correction still beats none, and a
+            # dropped one leaves that limb posed in the stride it was bound in.
+            turn = IDENTITY.slerp(turn, cap / angle)
+            angle = cap
+        corrections[name] = turn
+        if angle >= 1.0:
+            report[name] = round(angle, 1)
+    return corrections, report
+
+
+def keyframe(rig, frame, pose, corrections=None):
+    corrections = corrections or {}
     for bone_name, angles in pose.items():
         bone = rig.pose.bones.get(bone_name)
         if not bone:
             continue
         bone.rotation_mode = "QUATERNION"
-        bone.rotation_quaternion = _euler(angles)
+        # Pre-multiply. The other order applies the straightening inside the
+        # already-swung frame and puts the stride back into the swing axis.
+        bone.rotation_quaternion = corrections.get(bone_name, IDENTITY) @ _euler(angles)
         bone.keyframe_insert("rotation_quaternion", frame=frame)
 
 
@@ -285,8 +432,9 @@ CLIPS = {
 }
 
 
-def author_clips(rig, wanted, fps=24):
+def author_clips(rig, wanted, corrections=None, fps=24):
     """One glTF animation per clip, each an action stashed on its own NLA track."""
+    corrections = corrections or {}
     made = []
     rig.animation_data_create()
     for kind in wanted:
@@ -294,14 +442,18 @@ def author_clips(rig, wanted, fps=24):
         action = bpy.data.actions.new(kind)
         action.use_fake_user = True
         rig.animation_data.action = action
+        # Every bone is keyed with its correction, not only the ones this clip
+        # poses. Idle moves five bones; without this the legs would keep the
+        # stride they were bound in while the corrected arms straightened.
         for bone in rig.pose.bones:
             bone.rotation_mode = "QUATERNION"
-            bone.rotation_quaternion = (1, 0, 0, 0)
+            bone.rotation_quaternion = corrections.get(bone.name, IDENTITY)
+            bone.keyframe_insert("rotation_quaternion", frame=1)
 
         frames = spec["frames"]
         for frame in range(frames + 1):
             t = (frame % frames) / frames if spec["loop"] else frame / frames
-            keyframe(rig, frame + 1, clip_poses(kind, t))
+            keyframe(rig, frame + 1, clip_poses(kind, t), corrections)
 
         track = rig.animation_data.nla_tracks.new()
         track.name = kind
@@ -412,7 +564,10 @@ def run(job):
         rig = build_armature(bones)
         result["weightedVertices"] = bind(mesh, rig)
         result["bones"] = [name for name, *_ in bones]
-        result["animations"] = author_clips(rig, job["animations"])
+        corrections, turned = bind_corrections(rig, canonical_bones(marks))
+        result["animations"] = author_clips(rig, job["animations"], corrections)
+        result["measuredLimbs"] = marks.get("measuredLimbs", [])
+        result["bindCorrection"] = turned
         result["measurements"] = {k: round(float(v), 5) for k, v in marks.items()
                                   if isinstance(v, (int, float))}
     else:
