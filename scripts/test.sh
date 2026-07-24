@@ -4,6 +4,8 @@
 #   scripts/test.sh              all layers
 #   scripts/test.sh image2mesh   one layer
 #
+# The rig layer's Blender tests skip themselves when no Blender is installed.
+#
 # The preview layer also has DOM tests (vitest + jsdom + Testing Library + MSW).
 # They need `npm install` in layers/preview once; without it they are skipped
 # with a note rather than failing the run.
@@ -12,7 +14,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LAYERS=("text2image" "image2mesh" "pipeline" "preview")
+LAYERS=("text2image" "image2mesh" "pipeline" "rig" "preview")
 [ $# -gt 0 ] && LAYERS=("$@")
 
 if command -v uvx >/dev/null 2>&1; then

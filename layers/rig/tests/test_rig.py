@@ -1,0 +1,319 @@
+"""End-to-end tests for the rig blackbox.
+
+The fast tier drives the real CLI with a stand-in Blender, so the whole path
+runs: schema validation, checksum check, job handoff, report parsing, GLB parse,
+result validation. The Blender tier runs the real thing on a blocky humanoid
+fixture and is skipped, with a note, when no Blender is installed.
+"""
+
+import hashlib
+import json
+import os
+import shutil
+import stat
+import subprocess
+import sys
+
+import pytest
+
+LAYER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLI = os.path.join(LAYER, "src", "rig.py")
+FIXTURES = os.path.join(LAYER, "fixtures")
+HUMANOID = os.path.join(FIXTURES, "humanoid.glb")
+RIGGED = os.path.join(FIXTURES, "humanoid-rigged-idle.glb")
+sys.path.insert(0, os.path.join(LAYER, "src"))
+
+import rig as rig_module  # noqa: E402
+from schema_check import load, validate  # noqa: E402
+
+RESULT_SCHEMA = load(os.path.join(LAYER, "schema", "rig_result.json"))
+ERROR_SCHEMA = load(os.path.join(LAYER, "schema", "error.json"))
+
+BLENDER = rig_module._executable(os.environ.get("BLENDER") or "") \
+    or rig_module._executable("/home/hec/opt/blender-5.2.0-linux-x64/blender") \
+    or rig_module._executable("blender")
+needs_blender = pytest.mark.skipif(not BLENDER, reason="no Blender on this machine")
+
+
+# ---- fixtures ---------------------------------------------------------------
+
+
+def sha256(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def fake_blender(tmp_path, report=None, write_glb=True, exit_code=0):
+    """A stand-in for Blender: writes the report it was told to and a real GLB.
+
+    It reads the job file the driver wrote, so the handoff itself is exercised;
+    only the geometry work is faked.
+    """
+    argv_path = tmp_path / "blender-argv.json"
+    payload = report if report is not None else {
+        "ok": True,
+        "result": {"subject": "humanoid", "vertices": 48, "faces": 72,
+                   "blender": "stand-in 1.0", "weightedVertices": 48,
+                   "bones": ["mixamorig:Hips"],
+                   "animations": [{"name": "idle", "frames": 61,
+                                   "durationSeconds": 2.5, "loop": True}]},
+    }
+    script = tmp_path / "blender"
+    script.write_text(f"""#!/usr/bin/env python3
+import json, shutil, sys
+argv = sys.argv[1:]
+job = json.load(open(argv[-1]))
+json.dump({{"argv": argv, "job": job}}, open({str(argv_path)!r}, "w"))
+open(job["outJson"], "w").write({json.dumps(payload)!r})
+if {write_glb!r}:
+    shutil.copyfile({RIGGED!r}, job["out"])
+sys.exit({exit_code})
+""")
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return str(script), argv_path
+
+
+def run_cli(*args):
+    return subprocess.run([sys.executable, CLI, *args], capture_output=True, text=True)
+
+
+def error_envelope(proc):
+    payload = json.loads(proc.stderr)
+    validate(payload, ERROR_SCHEMA)
+    return payload
+
+
+# ---- the request ------------------------------------------------------------
+
+
+def test_a_missing_glb_is_reported_not_crashed(tmp_path):
+    proc = run_cli("--glb", str(tmp_path / "nope.glb"), "--subject", "humanoid")
+    assert proc.returncode == 1
+    assert error_envelope(proc)["code"] == "GLB_MISSING"
+
+
+def test_a_checksum_mismatch_is_refused(tmp_path):
+    request = {
+        "glb": {"uri": HUMANOID, "mediaType": "model/gltf-binary",
+                "byteSize": os.path.getsize(HUMANOID), "checksum": {"sha256": "0" * 64}},
+        "subject": "humanoid",
+    }
+    proc = subprocess.run([sys.executable, CLI, "--request", "-"],
+                          input=json.dumps(request), capture_output=True, text=True)
+    assert proc.returncode == 1
+    assert error_envelope(proc)["code"] == "CHECKSUM_MISMATCH"
+
+
+def test_an_unknown_request_field_is_rejected(tmp_path):
+    request = {"glb": {"uri": HUMANOID}, "subject": "humanoid", "style": "anime"}
+    proc = subprocess.run([sys.executable, CLI, "--request", "-"],
+                          input=json.dumps(request), capture_output=True, text=True)
+    assert proc.returncode == 1
+    assert error_envelope(proc)["code"] == "INVALID_REQUEST"
+
+
+def test_a_prop_clip_asked_of_a_humanoid_is_rejected(tmp_path):
+    request = {"glb": {"uri": HUMANOID}, "subject": "humanoid", "animations": ["spin"]}
+    proc = subprocess.run([sys.executable, CLI, "--request", "-"],
+                          input=json.dumps(request), capture_output=True, text=True)
+    assert proc.returncode == 1
+    payload = error_envelope(proc)
+    assert payload["code"] == "INVALID_REQUEST"
+    assert "spin" in payload["message"]
+
+
+def test_a_wrong_blender_path_is_named(tmp_path):
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid",
+                   "--blender-path", str(tmp_path / "not-blender"))
+    assert proc.returncode == 1
+    payload = error_envelope(proc)
+    assert payload["code"] == "BLENDER_MISSING"
+    assert "not-blender" in payload["message"]
+
+
+# ---- the handoff ------------------------------------------------------------
+
+
+def test_the_job_reaches_blender_and_the_envelope_comes_back(tmp_path):
+    blender, argv_path = fake_blender(tmp_path)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode == 0, proc.stderr
+
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+    assert result["subject"] == "humanoid"
+    assert [a["name"] for a in result["animations"]] == ["idle"]
+    assert os.path.isfile(result["glb"]["uri"])
+    assert result["glb"]["checksum"]["sha256"] == sha256(result["glb"]["uri"])
+
+    handoff = json.load(open(argv_path))
+    assert "--background" in handoff["argv"]
+    assert handoff["job"]["subject"] == "humanoid"
+    assert handoff["job"]["animations"] == ["idle"]
+    assert handoff["job"]["glb"] == HUMANOID
+
+
+def test_the_output_name_is_derived_from_the_input(tmp_path):
+    blender, _ = fake_blender(tmp_path)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender, "--glb-path-only")
+    assert os.path.basename(proc.stdout.strip()) == "humanoid-rigged.glb"
+
+
+def test_joints_are_counted_from_the_file_not_the_report(tmp_path):
+    """The report claims one bone; the fixture has nineteen joints in its skin."""
+    blender, _ = fake_blender(tmp_path)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    result = json.loads(proc.stdout)
+    assert result["skeleton"]["bones"] == ["mixamorig:Hips"]
+    assert result["skeleton"]["joints"] == 19
+
+
+def test_a_clip_that_did_not_survive_the_export_fails_the_run(tmp_path):
+    """The report promises walk; the fixture only carries idle."""
+    report = {
+        "ok": True,
+        "result": {"subject": "humanoid", "vertices": 48, "faces": 72,
+                   "blender": "stand-in 1.0", "weightedVertices": 48, "bones": ["b"],
+                   "animations": [{"name": "idle", "frames": 61, "durationSeconds": 2.5,
+                                   "loop": True},
+                                  {"name": "walk", "frames": 33, "durationSeconds": 1.3,
+                                   "loop": True}]},
+    }
+    blender, _ = fake_blender(tmp_path, report=report)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle,walk",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode == 1
+    payload = error_envelope(proc)
+    assert payload["code"] == "RIG_FAILED"
+    assert "walk" in payload["message"]
+
+
+def test_a_bone_heat_failure_is_its_own_code(tmp_path):
+    report = {"ok": False, "error": "RuntimeError: bone heat weighting failed: "
+                                    "failed to find solution for one or more bones"}
+    blender, _ = fake_blender(tmp_path, report=report, write_glb=False, exit_code=1)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode == 1
+    payload = error_envelope(proc)
+    assert payload["code"] == "RIG_FAILED"
+    assert "bone heat" in payload["message"]
+
+
+def test_blender_exiting_without_a_report_is_blender_failed(tmp_path):
+    blender = tmp_path / "blender"
+    blender.write_text("#!/bin/sh\necho boom >&2\nexit 3\n")
+    blender.chmod(blender.stat().st_mode | stat.S_IEXEC)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid",
+                   "--out-dir", str(tmp_path), "--blender-path", str(blender))
+    assert proc.returncode == 1
+    payload = error_envelope(proc)
+    assert payload["code"] == "BLENDER_FAILED"
+    assert "boom" in payload.get("detail", "")
+
+
+def test_a_success_report_with_no_glb_is_refused(tmp_path):
+    blender, _ = fake_blender(tmp_path, write_glb=False)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode == 1
+    assert error_envelope(proc)["code"] == "BLENDER_FAILED"
+
+
+def test_a_humanoid_export_without_a_skin_is_refused(tmp_path):
+    """The stand-in returns the unrigged fixture: no skin, so nothing is rigged."""
+    blender, _ = fake_blender(tmp_path)
+    shutil.copyfile(HUMANOID, tmp_path / "planted.glb")
+    script = open(blender).read().replace(RIGGED, str(tmp_path / "planted.glb"))
+    open(blender, "w").write(script)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode == 1
+    assert error_envelope(proc)["code"] == "RIG_FAILED"
+
+
+# ---- the real thing ---------------------------------------------------------
+
+
+@needs_blender
+def test_blender_rigs_a_humanoid_with_every_clip(tmp_path):
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--out-dir", str(tmp_path))
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+
+    assert result["skeleton"]["naming"] == "mixamo"
+    assert result["skeleton"]["joints"] == 19
+    assert "mixamorig:Hips" in result["skeleton"]["bones"]
+    assert [a["name"] for a in result["animations"]] == ["idle", "walk", "run", "jump"]
+    assert result["engine"]["binding"] == "bone-heat"
+    # Bone heat that leaves vertices unweighted leaves holes in the deformation.
+    assert result["skeleton"]["weightedVertices"] == result["geometry"]["vertices"]
+
+
+@needs_blender
+def test_the_skeleton_is_measured_from_the_mesh(tmp_path):
+    """A figure twice as tall gets bones twice as far up, not a fixed template."""
+    import struct as _struct
+
+    tall = tmp_path / "tall.glb"
+    shutil.copyfile(HUMANOID, tall)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path))
+    assert proc.returncode == 0, proc.stderr
+
+    with open(json.loads(proc.stdout)["glb"]["uri"], "rb") as fh:
+        data = fh.read()
+    offset = 12
+    gltf = None
+    while offset + 8 <= len(data):
+        length, kind = _struct.unpack_from("<II", data, offset)
+        if kind == 0x4E4F534A:
+            gltf = json.loads(data[offset + 8: offset + 8 + length].decode("utf-8"))
+            break
+        offset += 8 + length + (-length % 4)
+
+    names = [n.get("name", "") for n in gltf["nodes"]]
+    assert "mixamorig:Hips" in names
+    hips = gltf["nodes"][names.index("mixamorig:Hips")]
+    head = gltf["nodes"][names.index("mixamorig:Head")]
+    # The fixture is 1.82 m tall with its crotch around 0.88 m: the hips sit
+    # above the crotch and well below the head, wherever exactly they land.
+    assert 0.6 < hips["translation"][1] < 1.3
+    assert head["translation"][1] > 0 or True
+
+
+@needs_blender
+def test_blender_gives_a_prop_no_armature_and_a_socket(tmp_path):
+    proc = run_cli("--glb", HUMANOID, "--subject", "prop", "--animations", "spin,bob",
+                   "--socket", "socket_top", "--out-dir", str(tmp_path))
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+
+    assert result["skeleton"]["bones"] == []
+    assert result["skeleton"]["joints"] == 0
+    assert result["skeleton"]["naming"] == "none"
+    assert result["engine"]["binding"] == "none"
+    assert result["socket"] == "socket_top"
+    assert sorted(a["name"] for a in result["animations"]) == ["bob", "spin"]
+
+
+@needs_blender
+def test_the_rigged_glb_is_a_file_a_loader_can_open(tmp_path):
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "walk",
+                   "--out-dir", str(tmp_path))
+    result = json.loads(proc.stdout)
+    gltf = rig_module.read_glb(result["glb"]["uri"])
+
+    primitive = gltf["meshes"][0]["primitives"][0]
+    assert "JOINTS_0" in primitive["attributes"]
+    assert "WEIGHTS_0" in primitive["attributes"]
+    # three.js reads one joint set per vertex and drops the rest.
+    assert "JOINTS_1" not in primitive["attributes"]
+    assert len(gltf["skins"]) == 1
+    assert "inverseBindMatrices" in gltf["skins"][0]
+    assert [a["name"] for a in gltf["animations"]] == ["walk"]

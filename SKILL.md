@@ -61,6 +61,22 @@ Useful flags:
 
 The GLB is validated before you see it: glTF magic, container version 2, a JSON chunk that parses, a BIN chunk, at least one mesh. `triangles` is counted from the file, not predicted.
 
+## Making it move
+
+A generated mesh is a statue. `layers/rig` turns it into something that walks.
+
+```bash
+python3 layers/rig/src/rig.py --glb out/hero-r512.glb --subject humanoid --out-dir out
+python3 layers/rig/src/rig.py --glb out/barrel-r512.glb --subject prop --socket socket_top
+```
+
+- **humanoid**: 19 Mixamo-named bones fitted to the mesh by measuring it, bone-heat skinning, and `idle`, `walk`, `run`, `jump` in the file. About a second on a decimated mesh.
+- **prop**: no armature. `spin` and `bob` on the node itself, plus a named empty as an attachment point, which is what an engine wants from a barrel.
+
+Rig **after** decimation, never before: simplifying a skinned mesh throws the weights away. `--target-faces 4000` then rig is the whole recipe for a game-ready character. Needs Blender 5.x on the machine (`$BLENDER`, or `/home/hec/opt/blender-5.2.0-linux-x64/blender`, or on PATH).
+
+It will not rig a quadruped, a vehicle, or a figure whose arms are fused to its body: bone heat spreads weight across the fused bridge and the arm drags the torso. Regenerate instead.
+
 ## Showing the user the result
 
 A path is not a preview. When the user will want to see the asset, start the turntable and give them the link:
@@ -112,5 +128,5 @@ python3 layers/pipeline/src/pipeline.py --prompt "..." --runner server
 ## What this skill will not do
 
 - Multi-object scenes. TRELLIS.2 reconstructs one subject; a prompt with two things gets you one confused thing.
-- Rigging, animation, or edits to an existing mesh.
+- Edit an existing mesh, or rig anything that is not one upright figure or one prop.
 - Running without a GPU. `--require-gpu` is always passed to the engine, so there is no silent CPU path that takes half an hour.

@@ -26,6 +26,8 @@ A skill that turns a sentence into a `.glb` you can hand straight to three.js.
 
 Two stages because TRELLIS.2 is an image-to-3D model, not a text-to-3D one. The image stage runs on the ComfyUI stack that already exists on this box; the 3D stage runs in a container this repo builds.
 
+A third, optional stage rigs the result: a measured skeleton, bone-heat skinning and a walk cycle, so a generated character arrives able to move.
+
 ## Why Vulkan for the 3D half
 
 Strix Halo has no officially smooth ROCm story for every workload, and the 3D engine does not need one. `trellis.cpp` already had a Vulkan backend, so the mesh side runs on Mesa RADV against `/dev/dri` with no `/dev/kfd`, no ROCm libraries, and no `--privileged`. The container is 804 MB and starts in under a second.
@@ -38,6 +40,7 @@ The engine here is `trellis.cpp` trimmed to that one path. 207 MB of upstream ch
 - Docker and Compose.
 - [comfyui-strix-docker](https://github.com/hec-ovi/comfyui-strix-docker) running, with the FLUX.2 klein weights under its models mount: `flux-2-klein-4b.safetensors`, `qwen_3_4b.safetensors`, `flux2-vae.safetensors`.
 - 20 GB of disk for the TRELLIS.2 GGUFs, plus Python 3.10+ for the drivers (standard library only, no pip install).
+- Blender 5.x if you want rigging. Anywhere on PATH, or pointed at by `$BLENDER`. Nothing else in the repo needs it.
 
 ## Setup
 
@@ -71,6 +74,19 @@ Textures are WebP inside the GLB via `EXT_texture_webp`. Rebuild with `-DT2M_WEB
 
 Generating more than one asset in a session? Start the resident server once and pass `--runner server`, so model load is paid at startup instead of per call. The command is in [`SKILL.md`](SKILL.md).
 
+## Low poly, and making it move
+
+`--target-faces N` sets the quadric simplify target. At res 512 the default is 150K faces; asking for 4000 gives a 3810-triangle, 304 KB GLB in the same run time, textured, because the collapse happens before the UV unwrap and the texture is baked onto the simplified mesh.
+
+```bash
+python3 layers/pipeline/src/pipeline.py --prompt "a viking warrior" --target-faces 6000 --out-dir out
+python3 layers/rig/src/rig.py --glb out/<asset>.glb --subject humanoid --out-dir out
+```
+
+That second command gives a humanoid 19 Mixamo-named bones fitted to the mesh by measuring it, bone-heat skinning weights, and `idle`, `walk`, `run` and `jump` clips in the GLB. It took 1.1 s on the 5957-face warrior above. A prop instead gets no armature at all: `--subject prop` puts TRS clips on the node and `--socket <name>` adds a named attachment empty, which is what a game engine actually wants from a barrel.
+
+Rig after decimation, never before: simplifying a skinned mesh throws the weights away. Why the skeleton is measured rather than predicted by a neural rigger, and why the clips are authored rather than downloaded, is in [`layers/rig/README.md`](layers/rig/README.md).
+
 ## Look at it
 
 ```bash
@@ -97,13 +113,14 @@ The output GLB passes the Khronos glTF-Validator with 0 errors and 0 warnings (`
 
 ## Layout
 
-Three blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.
+Five blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.
 
 | Layer | Owns | Contract |
 | --- | --- | --- |
 | [`layers/text2image`](layers/text2image) | prompt framing, the ComfyUI graph, the klein weights | [CONTRACT.md](layers/text2image/CONTRACT.md) |
 | [`layers/image2mesh`](layers/image2mesh) | the Vulkan engine, the container, GLB validation | [CONTRACT.md](layers/image2mesh/CONTRACT.md) |
 | [`layers/pipeline`](layers/pipeline) | stage order, error wrapping | [CONTRACT.md](layers/pipeline/CONTRACT.md) |
+| [`layers/rig`](layers/rig) | skeletons, skinning, the clip set, prop sockets | [CONTRACT.md](layers/rig/CONTRACT.md) |
 | [`layers/preview`](layers/preview) | the three.js turntable and the server behind it | [CONTRACT.md](layers/preview/CONTRACT.md) |
 
 Everything crossing a boundary is a schema-validated JSON envelope, and binary payloads cross by reference: path, media type, byte size, sha256. The mesh layer re-hashes the PNG it is handed, so a mismatch fails the run instead of silently reconstructing the wrong picture.
@@ -111,16 +128,16 @@ Everything crossing a boundary is a schema-validated JSON envelope, and binary p
 ## Tests
 
 ```bash
-./scripts/test.sh          # all four layers, 92 tests
+./scripts/test.sh          # all five layers, 109 tests
 ```
 
-No GPU and no weights needed: the tests stand in only for ComfyUI and the engine binary, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that does need the GPU is skipped unless `T2M_RUN_GPU=1`.
+No GPU and no weights needed: the tests stand in only for ComfyUI, the engine binary and Blender, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that needs the GPU is skipped unless `T2M_RUN_GPU=1`, and the rig layer's five real-Blender tests skip themselves with a note when Blender is not installed.
 
 The preview layer's share is 30 HTTP tests against a real server, plus 27 DOM tests (vitest, jsdom, Testing Library, MSW) that drive the interface with real clicks and keystrokes. The DOM half needs `npm install` in `layers/preview` once; without it it is skipped with a note rather than failing.
 
 ## Limits
 
 - One object per prompt. TRELLIS.2 reconstructs a single subject; ask for two things and you get one confused thing.
-- No rigging, no animation, no editing an existing mesh.
+- Rigging covers one upright humanoid or one prop. No quadrupeds, no vehicles, no faces or fingers, and no editing an existing mesh.
 - No CPU path. `--require-gpu` is always passed, so a missing Vulkan device is an error rather than a twenty-minute fallback.
 - Tested on one machine, the gfx1151 box described in [`layers/image2mesh/bench/README.md`](layers/image2mesh/bench/README.md).

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/rig_result.json",
+  "title": "RigResult",
+  "description": "Params out for the rig layer: one rigged, animated GLB by reference plus what is in it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "glb", "subject", "skeleton", "animations", "engine", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "glb": {
+      "type": "object",
+      "description": "The rigged GLB, by reference. Shape-compatible with image2mesh's MeshResult.glb, so the preview layer and any caller treat both the same way.",
+      "additionalProperties": false,
+      "required": ["uri", "mediaType", "byteSize", "checksum"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "const": "model/gltf-binary" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+        }
+      }
+    },
+    "subject": { "type": "string", "enum": ["humanoid", "prop"] },
+    "skeleton": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bones", "joints", "naming"],
+      "properties": {
+        "bones": { "type": "array", "items": { "type": "string" }, "description": "Bone names in creation order. Empty for a prop." },
+        "joints": { "type": "integer", "minimum": 0, "description": "Joint count read back out of the exported skin, not the count that was requested." },
+        "naming": { "type": "string", "enum": ["mixamo", "none"], "description": "mixamo means bones are named mixamorig:Hips, mixamorig:LeftArm and so on, which is what free clip libraries and retargeting tools expect." },
+        "weightedVertices": { "type": "integer", "minimum": 0, "description": "Vertices that came out of bone heat with at least one group." }
+      }
+    },
+    "animations": {
+      "type": "array",
+      "description": "One entry per clip in the exported file. A clip that was asked for and did not survive the export is an error, not a silent omission.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "frames", "durationSeconds", "loop"],
+        "properties": {
+          "name": { "type": "string" },
+          "frames": { "type": "integer", "minimum": 2 },
+          "durationSeconds": { "type": "number", "minimum": 0 },
+          "loop": { "type": "boolean" }
+        }
+      }
+    },
+    "socket": { "type": "string", "description": "Present when a prop was given an attachment empty." },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vertices": { "type": "integer", "minimum": 0 },
+        "faces": { "type": "integer", "minimum": 0 }
+      },
+      "description": "After the cleanup pass that bone heat needs, so it will not match the input mesh exactly."
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blender", "binding"],
+      "properties": {
+        "blender": { "type": "string", "description": "Blender version string, read from the running build." },
+        "binding": { "type": "string", "enum": ["bone-heat", "none"], "description": "How skinning weights were derived. none for a prop, which gets no armature at all." }
+      }
+    },
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  }
+}
