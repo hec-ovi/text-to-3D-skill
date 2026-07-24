@@ -366,6 +366,12 @@ def main(argv=None):
     parser.add_argument("--target-faces", type=int,
                         help="quadric simplify target in faces (default 300K at res 1024, "
                              "150K at res 512)")
+    parser.add_argument("--tex-res", type=int, choices=[512, 1024],
+                        help="PBR volume resolution. The engine drops a dense res-1024 decode "
+                             "to 512 on its own, which swaps in a smaller texture model driven "
+                             "by half-resolution conditioning; force 1024 for a face")
+    parser.add_argument("--atlas", type=int, choices=[512, 1024, 2048, 4096],
+                        help="UV atlas size (default 2048 at res 1024, 1024 at res 512)")
     parser.add_argument("--bg-removal", choices=["auto", "threshold", "birefnet"], default="auto")
     parser.add_argument("--runner", choices=["docker", "server", "binary"], default="docker")
     parser.add_argument("--docker-image", default="text-to-3d/engine:vulkan")
@@ -407,6 +413,10 @@ def main(argv=None):
             request["binaryPath"] = args.binary_path
         if args.target_faces:
             request["targetFaces"] = args.target_faces
+        if args.tex_res:
+            request["textureResolution"] = args.tex_res
+        if args.atlas:
+            request["atlasPx"] = args.atlas
     else:
         parser.error("one of --image or --request is required")
 

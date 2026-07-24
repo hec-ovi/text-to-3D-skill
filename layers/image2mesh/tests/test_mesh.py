@@ -229,6 +229,19 @@ def test_target_faces_reaches_the_engine(tmp_path):
     assert "--target-faces 4000" in " ".join(json.loads(argv_path.read_text()))
 
 
+def test_the_texture_knobs_are_reachable_from_the_command_line(tmp_path):
+    """They were in the schema and in the request path but not in argv, so a
+    caller with a PNG and a shell could not ask for the good texture path."""
+    png, _ = write_png(tmp_path)
+    engine, argv_path = fake_engine(tmp_path)
+    run_cli("--image", png, "--out-dir", str(tmp_path), "--res", "1024",
+            "--tex-res", "1024", "--atlas", "4096",
+            "--runner", "binary", "--binary-path", engine)
+    flat = " ".join(json.loads(argv_path.read_text()))
+    assert "--tex-res 1024" in flat
+    assert "--atlas 4096" in flat
+
+
 def test_no_target_faces_leaves_the_engine_default_alone(tmp_path):
     png, _ = write_png(tmp_path)
     engine, argv_path = fake_engine(tmp_path)
