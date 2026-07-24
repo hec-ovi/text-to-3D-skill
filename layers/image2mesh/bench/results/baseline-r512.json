@@ -4,53 +4,53 @@
   "resolution": 512,
   "seed": 42,
   "exitCode": 0,
-  "wallSeconds": 223.42,
-  "engineSeconds": 222.8,
+  "wallSeconds": 224.93,
+  "engineSeconds": 224.3,
   "phases": [
     {
       "phase": "startup + first model load",
       "startSeconds": 0.0,
-      "seconds": 0.24
+      "seconds": 0.28
     },
     {
       "phase": "[1/6] preprocess /in/bench-subject.png (BiRefNet bg removal, 512)",
-      "startSeconds": 0.24,
-      "seconds": 17.99
+      "startSeconds": 0.28,
+      "seconds": 17.82
     },
     {
       "phase": "[2/6] DINOv3 conditioning",
-      "startSeconds": 18.23,
-      "seconds": 0.34
+      "startSeconds": 18.1,
+      "seconds": 0.37
     },
     {
       "phase": "[3/6] sparse-structure flow + decode",
-      "startSeconds": 18.57,
-      "seconds": 44.44
+      "startSeconds": 18.47,
+      "seconds": 45.01
     },
     {
       "phase": "[4/7] shape SLAT flow (512)",
-      "startSeconds": 63.01,
-      "seconds": 43.94
+      "startSeconds": 63.48,
+      "seconds": 44.45
     },
     {
       "phase": "[5/7] FlexiDualGrid shape decode -> mesh @res512",
-      "startSeconds": 106.95,
-      "seconds": 15.28
+      "startSeconds": 107.93,
+      "seconds": 15.34
     },
     {
       "phase": "[6/7] texture SLAT flow + PBR decode",
-      "startSeconds": 122.23,
-      "seconds": 39.93
+      "startSeconds": 123.27,
+      "seconds": 39.96
     },
     {
       "phase": "[7/7] write /out/baseline-r512.glb",
-      "startSeconds": 162.16,
-      "seconds": 60.88
+      "startSeconds": 163.23,
+      "seconds": 61.35
     }
   ],
   "peakGttMiB": 3682,
-  "peakVramMiB": 1439,
-  "gttDeltaMiB": 3613,
+  "peakVramMiB": 1485,
+  "gttDeltaMiB": 3612,
   "vramDeltaMiB": 761,
   "glbBytes": 5204732,
   "triangles": 138524

@@ -71,6 +71,20 @@ Textures are WebP inside the GLB via `EXT_texture_webp`. Rebuild with `-DT2M_WEB
 
 Generating more than one asset in a session? Start the resident server once and pass `--runner server`, so model load is paid at startup instead of per call. The command is in [`SKILL.md`](SKILL.md).
 
+## Performance
+
+One 1024x1024 image to a textured GLB at res 512, on the gfx1151 box, same input and seed for both:
+
+| | pinned upstream (Vulkan) | this repo |
+| --- | --- | --- |
+| engine time | 224.3 s | **191.7 s** |
+| triangles | 138524 | 138520 |
+| peak GTT | 3612 MiB | 3616 MiB |
+
+All 32.6 s of the difference comes from one place. Profiling the run showed the GLB write phase was 27% of it, more than any single flow stage, and that 62% of the decimation inside it was a single-threaded `unordered_map` building the edge list, costing twice what the GPU kernels did. The CSR adjacency built one line earlier already has the information, so each vertex now emits its own edges in parallel: 1647 ms to 24 ms on the first round. Full method, numbers and the changes that did **not** help are in [`layers/image2mesh/CHANGES.md`](layers/image2mesh/CHANGES.md).
+
+The output GLB passes the Khronos glTF-Validator with 0 errors and 0 warnings (`scripts/validate-glb.mjs`).
+
 ## Layout
 
 Three blackboxes. Each owns a folder, declares a contract, and is changed without reading any other one's source. [`docs/INDEX.md`](docs/INDEX.md) maps "the thing you want to change" to the one folder to open.

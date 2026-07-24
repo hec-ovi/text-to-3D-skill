@@ -23,6 +23,7 @@
 #include <cstring>
 #include <limits>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -33,6 +34,17 @@
 namespace trellis {
 
 namespace {
+
+// A boundary flag is set from whichever vertex range owns the lower endpoint, so
+// the write to the higher endpoint crosses threads. Only ever stores 1, never
+// reads back within the parallel section, so relaxed ordering is enough.
+inline void mark_boundary(int32_t* slot) {
+#if defined(__GNUC__) || defined(__clang__)
+    __atomic_store_n(slot, 1, __ATOMIC_RELAXED);
+#else
+    *slot = 1;
+#endif
+}
 
 static const uint32_t kDecimateSpv[] =
 #include TRELLIS_DECIMATE_SPV_HEADER
@@ -309,20 +321,73 @@ bool simplify_round_vk(std::vector<float>& verts, int& V, std::vector<int32_t>& 
     if (timing) lap(ms_csr);
 
     // --- unique undirected edges (e0<e1) + boundary vertices (edge used by a single face) ---
-    std::unordered_map<uint64_t,int> ecount;
-    ecount.reserve((size_t)F * 2);
-    auto ekey = [](int a, int b) -> uint64_t { if (a > b) { int t=a; a=b; b=t; } return ((uint64_t)(uint32_t)a << 32) | (uint32_t)b; };
-    for (int f = 0; f < F; ++f) {
-        int a = faces[3*f], b = faces[3*f+1], c = faces[3*f+2];
-        ecount[ekey(a,b)]++; ecount[ekey(b,c)]++; ecount[ekey(c,a)]++;
-    }
+    // Upstream counted every directed edge into an unordered_map: 3F hash updates
+    // per round, 19.4M of them on the first round of a 6.5M face mesh, then walked
+    // the map in bucket order. Measured with T2M_DECIMATE_TIMING=1 that was 62% of
+    // the whole decimation, about twice the GPU work, on one core.
+    //
+    // The CSR above already gives each vertex its incident faces, so a vertex can
+    // emit its own edges without touching shared state: gather the neighbours it
+    // sees across those faces, and a neighbour u > v appearing exactly once is an
+    // edge carried by a single face, which is the boundary test. That is parallel
+    // over vertices, and because each thread owns a contiguous vertex range the
+    // concatenation comes out ordered by (v, u) rather than by hash bucket.
     std::vector<int32_t> boundary((size_t)V, 0);
     std::vector<int32_t> edges;                        // E*2, packed (e0,e1) with e0<e1
-    edges.reserve(ecount.size() * 2);
-    for (auto& kv : ecount) {
-        int a = (int)(kv.first >> 32), b = (int)(kv.first & 0xffffffffu);
-        if (kv.second == 1) { boundary[a] = boundary[b] = 1; }
-        edges.push_back(a); edges.push_back(b);
+    {
+        const unsigned hw = std::thread::hardware_concurrency();
+        // One thread per 64k vertices, so small meshes do not pay for spawning.
+        const unsigned nt = std::max(1u, std::min(hw ? hw : 1u,
+                                                  (unsigned)(((size_t)V + 65535) / 65536)));
+        std::vector<std::vector<int32_t>> part(nt);
+
+        auto build_range = [&](unsigned t) {
+            const int lo = (int)((int64_t)V * t / nt);
+            const int hi = (int)((int64_t)V * (t + 1) / nt);
+            std::vector<int32_t>& out = part[t];
+            out.reserve((size_t)(hi - lo) * 8);
+            std::vector<int32_t> nb;
+            for (int v = lo; v < hi; ++v) {
+                nb.clear();
+                for (int32_t i = off[v]; i < off[v + 1]; ++i) {
+                    const int32_t f = v2f[i];
+                    const int32_t a = faces[3*f], b = faces[3*f+1], c = faces[3*f+2];
+                    if (a == v)      { nb.push_back(b); nb.push_back(c); }
+                    else if (b == v) { nb.push_back(a); nb.push_back(c); }
+                    else             { nb.push_back(a); nb.push_back(b); }
+                }
+                std::sort(nb.begin(), nb.end());
+                for (size_t i = 0; i < nb.size(); ) {
+                    size_t j = i + 1;
+                    while (j < nb.size() && nb[j] == nb[i]) ++j;
+                    const int32_t u = nb[i];
+                    if (u > v) {                       // emit each undirected edge once
+                        out.push_back(v);
+                        out.push_back(u);
+                        if (j - i == 1) {              // one incident face -> boundary
+                            mark_boundary(&boundary[v]);
+                            mark_boundary(&boundary[u]);   // owned by another range
+                        }
+                    }
+                    i = j;
+                }
+            }
+        };
+
+        if (nt == 1) {
+            build_range(0);
+        } else {
+            std::vector<std::thread> pool;
+            pool.reserve(nt - 1);
+            for (unsigned t = 1; t < nt; ++t) pool.emplace_back(build_range, t);
+            build_range(0);
+            for (auto& th : pool) th.join();
+        }
+
+        size_t total = 0;
+        for (auto& p : part) total += p.size();
+        edges.reserve(total);
+        for (auto& p : part) edges.insert(edges.end(), p.begin(), p.end());
     }
     const int E = (int)edges.size() / 2;
     if (timing) lap(ms_edges);
