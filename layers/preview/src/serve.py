@@ -7,7 +7,9 @@
 Routes:
     GET /                 the viewer page
     GET /api/models       ModelList envelope, newest first
+    GET /api/models?id=X  the same envelope holding just that model, or 404
     GET /models/<name>    the GLB bytes, as model/gltf-binary
+    GET /images/<name>    the source image bytes
     GET /<asset>          the page's own js/css and the vendored three.js
 
 Stdlib only. See ../CONTRACT.md.
@@ -15,6 +17,7 @@ Stdlib only. See ../CONTRACT.md.
 
 import argparse
 import datetime
+import hashlib
 import json
 import mimetypes
 import os
@@ -30,7 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LAYER = os.path.dirname(HERE)
 WEB = os.path.join(LAYER, "web")
 
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
 
 # Browsers refuse ES modules served as text/plain, and a GLB served as
 # octet-stream is fine but the correct type makes the network tab readable.
@@ -56,6 +59,22 @@ CHUNK_JSON = 0x4E4F534A
 SOURCE_SUFFIX = re.compile(r"-r\d+$")
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg",
                ".jpeg": "image/jpeg", ".webp": "image/webp"}
+
+# An id is what a caller passes around and pastes into a link, so it has to
+# survive a query string untouched. File names here are engine-generated hashes
+# and already safe; anything else gets folded down to the same alphabet.
+ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def model_id(name, taken=()):
+    """A stable, URL-safe handle for a file name, unique within one listing."""
+    ident = ID_UNSAFE.sub("-", os.path.splitext(name)[0]).strip("-.")
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()
+    if not ident:
+        return digest[:12]
+    # Two names that differ only in characters the id drops would collide, and a
+    # colliding id would silently serve the wrong model.
+    return ident if ident not in taken else f"{ident}-{digest[:6]}"
 
 
 def png_size(path):
@@ -144,8 +163,9 @@ def glb_stats(path):
 def list_models(directory):
     """ModelList envelope for `directory`, newest first."""
     models = []
+    taken = set()
     try:
-        names = os.listdir(directory)
+        names = sorted(os.listdir(directory))
     except OSError:
         names = []
 
@@ -156,7 +176,10 @@ def list_models(directory):
         if not os.path.isfile(path):
             continue
         stat = os.stat(path)
+        ident = model_id(name, taken)
+        taken.add(ident)
         entry = {
+            "id": ident,
             "name": name,
             "uri": "/models/" + urllib.parse.quote(name),
             "byteSize": stat.st_size,
@@ -190,18 +213,24 @@ def make_handler(models_dir):
 
         # ---- helpers ----
 
-        def _send(self, status, body, ctype, extra=None):
+        def _send(self, status, body, ctype, extra=None, cache="no-store"):
             self.send_response(status)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             # The viewer refetches a model after a regeneration; a cached 200
             # would show the old mesh and look like the engine did nothing.
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache)
             for key, value in (extra or {}).items():
                 self.send_header(key, value)
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
+
+        def _not_modified(self, etag):
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
 
         def _json(self, status, payload):
             self._send(status, json.dumps(payload, indent=2).encode("utf-8"),
@@ -223,8 +252,17 @@ def make_handler(models_dir):
                 return self._error(404, "NOT_FOUND", f"no such file: {safe}")
             ext = os.path.splitext(path)[1].lower()
             ctype = TYPES.get(ext) or mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+            # A GLB is megabytes and the sidebar shows every source image, so
+            # re-serving them on every reload is the one place this server can
+            # be slow. The validator is mtime and size: regenerating an asset
+            # changes both, so a stale file can never win a revalidation.
+            stat = os.stat(path)
+            etag = f'"{int(stat.st_mtime)}-{stat.st_size}"'
+            if self.headers.get("If-None-Match") == etag:
+                return self._not_modified(etag)
             with open(path, "rb") as fh:
-                self._send(200, fh.read(), ctype)
+                self._send(200, fh.read(), ctype, {"ETag": etag}, cache="no-cache")
 
         # ---- routes ----
 
@@ -232,14 +270,25 @@ def make_handler(models_dir):
             self.do_GET()
 
         def do_GET(self):
-            path = urllib.parse.urlparse(self.path).path
+            parsed = urllib.parse.urlparse(self.path)
+            path = parsed.path
 
             if path == "/api/models":
                 if not os.path.isdir(models_dir):
                     return self._error(404, "DIR_MISSING",
                                        f"no directory at {models_dir}",
                                        "pass --dir with a path that exists")
-                return self._json(200, list_models(models_dir))
+                payload = list_models(models_dir)
+                wanted = urllib.parse.parse_qs(parsed.query).get("id", [None])[0]
+                if wanted:
+                    # Same envelope, filtered to one entry, so a caller that
+                    # resolved an id parses exactly what it parses for a list.
+                    match = [m for m in payload["models"]
+                             if m["id"] == wanted or m["name"] == wanted]
+                    if not match:
+                        return self._error(404, "NOT_FOUND", f"no model with id {wanted}")
+                    payload["models"] = match
+                return self._json(200, payload)
 
             if path.startswith("/models/"):
                 return self._file(models_dir, urllib.parse.unquote(path[len("/models/"):]))

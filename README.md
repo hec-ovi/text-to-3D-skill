@@ -77,9 +77,9 @@ Generating more than one asset in a session? Start the resident server once and 
 python3 layers/preview/src/serve.py --dir out --open
 ```
 
-![The preview viewer showing a generated brass helmet on a turntable](docs/assets/preview.png)
+`http://127.0.0.1:8190` lists every GLB in the folder down the left, newest first, each card carrying the image it was reconstructed from, its triangle count, its size and its age. Filter by name, walk the list with the arrow keys, and switch between the turntable and the full-size source image with the two tabs. Drag to orbit, scroll to zoom, toggle the spin and its speed, flip to wireframe. three.js is vendored into the repo, so the page works with no network and no build step.
 
-A turntable on `http://127.0.0.1:8190`: pick any GLB in the folder, drag to orbit, scroll to zoom, toggle the spin and its speed, flip to wireframe. three.js is vendored into the repo, so the page works with no network and no build step. `?model=<name>` deep links a specific file.
+Every model gets a stable id, so `?id=<id>` deep links one asset and `GET /api/models?id=<id>` resolves it from a script. `?model=<file name>` still works.
 
 ## Performance
 
@@ -111,12 +111,12 @@ Everything crossing a boundary is a schema-validated JSON envelope, and binary p
 ## Tests
 
 ```bash
-./scripts/test.sh          # all four layers, 90 tests
+./scripts/test.sh          # all four layers, 92 tests
 ```
 
 No GPU and no weights needed: the tests stand in only for ComfyUI and the engine binary, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that does need the GPU is skipped unless `T2M_RUN_GPU=1`.
 
-The preview layer adds 17 HTTP tests against a real server and 16 DOM tests (vitest, jsdom, Testing Library, MSW) that drive the controls with real clicks. Those need `npm install` in `layers/preview` once; without it they are skipped with a note rather than failing.
+The preview layer's share is 30 HTTP tests against a real server, plus 27 DOM tests (vitest, jsdom, Testing Library, MSW) that drive the interface with real clicks and keystrokes. The DOM half needs `npm install` in `layers/preview` once; without it it is skipped with a note rather than failing.
 
 ## Limits
 

@@ -75,6 +75,16 @@ def get(url):
         return exc.code, exc.read(), dict(exc.headers)
 
 
+def get_conditional(url, etag):
+    """GET with If-None-Match, so a 304 comes back as a status, not an exception."""
+    request = urllib.request.Request(url, headers={"If-None-Match": etag})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status, response.read(), dict(response.headers)
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(), dict(exc.headers)
+
+
 # ---- the model list ---------------------------------------------------------
 
 
@@ -96,6 +106,55 @@ def test_lists_glbs_against_the_schema(server):
     assert entry["triangles"] == 7
     assert entry["materials"] == 1
     assert entry["readable"] is True
+
+
+def test_every_model_carries_a_url_safe_id(server):
+    base, directory = server
+    (directory / "a brass helmet (final).glb").write_bytes(make_glb())
+
+    entry = json.loads(get(base + "/api/models")[1])["models"][0]
+    assert entry["id"] == "a-brass-helmet-final"
+    assert entry["name"] == "a brass helmet (final).glb"
+
+
+def test_ids_stay_unique_when_names_fold_together(server):
+    base, directory = server
+    (directory / "a b.glb").write_bytes(make_glb())
+    (directory / "a+b.glb").write_bytes(make_glb())
+
+    ids = [m["id"] for m in json.loads(get(base + "/api/models")[1])["models"]]
+    assert len(set(ids)) == 2
+    assert ids[0].startswith("a-b")
+
+
+def test_one_model_can_be_resolved_by_id(server):
+    base, directory = server
+    (directory / "one.glb").write_bytes(make_glb(triangles=7))
+    (directory / "two.glb").write_bytes(make_glb(triangles=3))
+
+    payload = json.loads(get(base + "/api/models?id=two")[1])
+    validate(payload, MODEL_LIST_SCHEMA)
+    assert [m["name"] for m in payload["models"]] == ["two.glb"]
+    assert payload["models"][0]["triangles"] == 3
+
+
+def test_a_model_can_also_be_resolved_by_file_name(server):
+    base, directory = server
+    (directory / "one.glb").write_bytes(make_glb())
+
+    payload = json.loads(get(base + "/api/models?id=one.glb")[1])
+    assert [m["name"] for m in payload["models"]] == ["one.glb"]
+
+
+def test_an_unknown_id_is_a_not_found_envelope(server):
+    base, directory = server
+    (directory / "one.glb").write_bytes(make_glb())
+
+    status, body, _ = get(base + "/api/models?id=ghost")
+    assert status == 404
+    payload = json.loads(body)
+    validate(payload, ERROR_SCHEMA)
+    assert payload["code"] == "NOT_FOUND"
 
 
 def test_newest_first(server):
@@ -175,11 +234,34 @@ def test_glb_is_served_with_the_gltf_media_type(server):
     assert body == blob
 
 
-def test_a_regenerated_asset_is_never_served_from_cache(server):
+def test_bytes_carry_a_validator_so_a_reload_is_cheap(server):
     base, directory = server
     (directory / "asset.glb").write_bytes(make_glb())
-    _status, _body, headers = get(base + "/models/asset.glb")
-    assert headers["Cache-Control"] == "no-store"
+
+    status, body, headers = get(base + "/models/asset.glb")
+    assert status == 200
+    assert headers["Cache-Control"] == "no-cache"
+    etag = headers["ETag"]
+    assert etag
+
+    status, body, _ = get_conditional(base + "/models/asset.glb", etag)
+    assert status == 304
+    assert body == b""
+
+
+def test_a_regenerated_asset_gets_a_new_validator(server):
+    base, directory = server
+    (directory / "asset.glb").write_bytes(make_glb(triangles=4))
+    etag = get(base + "/models/asset.glb")[2]["ETag"]
+
+    bigger = make_glb(triangles=9)
+    (directory / "asset.glb").write_bytes(bigger)
+    os.utime(directory / "asset.glb", (1_900_000_000, 1_900_000_000))
+
+    status, body, headers = get_conditional(base + "/models/asset.glb", etag)
+    assert status == 200
+    assert body == bigger
+    assert headers["ETag"] != etag
 
 
 def test_missing_model_is_a_not_found_envelope(server):

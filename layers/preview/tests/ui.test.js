@@ -1,5 +1,5 @@
 /**
- * DOM tests for the preview controls.
+ * DOM tests for the preview interface.
  *
  * The real ui.js runs against a real DOM, driven by real user interaction, with
  * HTTP intercepted by MSW. Queries go by role and label. No WebGL here: that
@@ -7,16 +7,22 @@
  */
 
 import { describe, expect, test, vi, beforeEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/dom'
+import { screen, waitFor } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 
-import { mountUi, pickInitial, formatBytes, formatCount } from '../web/ui.js'
+import {
+  mountUi, pickInitial, filterModels, formatBytes, formatCount, formatShortCount, formatAge,
+} from '../web/ui.js'
 import { model, serveModels, serveError, serveNetworkFailure } from './msw-server.js'
 
 function mount(options = {}) {
   document.body.innerHTML = '<div id="app"></div>'
   return mountUi(document.getElementById('app'), options)
 }
+
+const cards = () => screen.getAllByRole('option')
+const cardNames = () => cards().map((c) => c.querySelector('.name').textContent)
+const selectedCard = () => cards().find((c) => c.getAttribute('aria-selected') === 'true')
 
 const BELL = model('bell-r512.glb', { triangles: 140654, byteSize: 4528192 })
 const HELMET = model('helmet-r512.glb', {
@@ -30,18 +36,31 @@ beforeEach(() => {
 })
 
 describe('model list', () => {
-  test('fills the dropdown from the server, newest first', async () => {
+  test('one card per model, in the order the server sent them', async () => {
     serveModels([BELL, HELMET])
     const ui = mount()
     await ui.refresh()
 
-    const select = screen.getByRole('combobox', { name: /model/i })
-    const options = within(select).getAllByRole('option')
-    expect(options.map((o) => o.value)).toEqual(['bell-r512.glb', 'helmet-r512.glb'])
-    expect(options[0]).toHaveProperty('textContent', 'bell-r512.glb (140,654 tris)')
+    expect(cardNames()).toEqual(['bell-r512.glb', 'helmet-r512.glb'])
+    expect(cards()[0].textContent).toContain('141k tris')
+    expect(cards()[0].textContent).toContain('4.3 MB')
+    expect(screen.getByRole('listbox', { name: /models/i })).toBeTruthy()
+    expect(document.querySelector('#model-count').textContent).toBe('(2)')
   })
 
-  test('selects the newest model and reports its stats', async () => {
+  test('a card shows the source image as its thumbnail, lazily', async () => {
+    serveModels([model('bell-r512.glb', {
+      source: { name: 'bell.png', uri: '/images/bell.png', byteSize: 1181070 },
+    })])
+    const ui = mount()
+    await ui.refresh()
+
+    const thumb = cards()[0].querySelector('.thumb img')
+    expect(thumb.getAttribute('src')).toBe('/images/bell.png')
+    expect(thumb.getAttribute('loading')).toBe('lazy')
+  })
+
+  test('selects the newest model, marks its card and reports its stats', async () => {
     serveModels([BELL, HELMET])
     const onSelect = vi.fn()
     const ui = mount({ onSelect })
@@ -49,37 +68,76 @@ describe('model list', () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect.mock.calls[0][0].name).toBe('bell-r512.glb')
+    expect(selectedCard().querySelector('.name').textContent).toBe('bell-r512.glb')
     expect(screen.getByRole('status')).toHaveProperty('textContent', 'Loading bell-r512.glb…')
     expect(document.querySelector('#stats').textContent).toContain('140,654')
-    expect(document.querySelector('#stats').textContent).toContain('4.3 MB')
+    expect(document.querySelector('#current-name').textContent).toBe('bell-r512.glb')
   })
 
-  test('honours ?model= when that file exists', async () => {
+  test('honours ?id= when that model exists', async () => {
+    serveModels([BELL, HELMET])
+    const onSelect = vi.fn()
+    const ui = mount({ onSelect, search: '?id=helmet-r512' })
+    await ui.refresh({ keepSelection: false })
+
+    expect(onSelect.mock.calls[0][0].name).toBe('helmet-r512.glb')
+    expect(selectedCard().querySelector('.name').textContent).toBe('helmet-r512.glb')
+  })
+
+  test('still honours the older ?model= link', async () => {
     serveModels([BELL, HELMET])
     const onSelect = vi.fn()
     const ui = mount({ onSelect, search: '?model=helmet-r512.glb' })
     await ui.refresh({ keepSelection: false })
 
     expect(onSelect.mock.calls[0][0].name).toBe('helmet-r512.glb')
-    expect(screen.getByRole('combobox', { name: /model/i })).toHaveProperty(
-      'value', 'helmet-r512.glb')
   })
 
-  test('falls back to the newest model and says so when ?model= is unknown', async () => {
+  test('falls back to the newest model and says so when the id is unknown', async () => {
     serveModels([BELL, HELMET])
     const onSelect = vi.fn()
-    const ui = mount({ onSelect, search: '?model=nope.glb' })
+    const ui = mount({ onSelect, search: '?id=nope' })
     await ui.refresh({ keepSelection: false })
 
     const status = screen.getByRole('status')
-    expect(status.textContent).toMatch(/No model named nope\.glb/)
+    expect(status.textContent).toMatch(/No model named nope/)
     expect(status.dataset.kind).toBe('warn')
     expect(onSelect.mock.calls[0][0].name).toBe('bell-r512.glb')
   })
 })
 
+describe('filtering', () => {
+  test('typing narrows the list without touching the selection', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const onSelect = vi.fn()
+    const ui = mount({ onSelect })
+    await ui.refresh()
+    onSelect.mockClear()
+
+    await user.type(screen.getByRole('searchbox', { name: /filter models/i }), 'helm')
+
+    expect(cardNames()).toEqual(['helmet-r512.glb'])
+    expect(document.querySelector('#model-count').textContent).toBe('(1/2)')
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(ui.selected.name).toBe('bell-r512.glb')
+  })
+
+  test('a filter that matches nothing says so', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    await user.type(screen.getByRole('searchbox', { name: /filter models/i }), 'zzz')
+
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(document.querySelector('#sidebar-note').textContent).toMatch(/Nothing matches "zzz"/)
+  })
+})
+
 describe('empty and error states', () => {
-  test('an empty directory explains what to do next and disables the dropdown', async () => {
+  test('an empty directory explains what to do next', async () => {
     serveModels([], '/home/hec/workspace/text-to-3D-skill/out')
     const onSelect = vi.fn()
     const ui = mount({ onSelect })
@@ -89,12 +147,13 @@ describe('empty and error states', () => {
     expect(status.textContent).toMatch(/No \.glb files in/)
     expect(status.textContent).toMatch(/pipeline/)
     expect(status.dataset.kind).toBe('empty')
-    expect(screen.getByRole('combobox', { name: /model/i })).toHaveProperty('disabled', true)
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(document.querySelector('#sidebar-note').textContent).toBe('No models yet.')
     expect(onSelect).not.toHaveBeenCalled()
   })
 
   test('an error envelope from the server is shown, not swallowed', async () => {
-    serveError(404, { contractVersion: '1.0', code: 'DIR_MISSING', message: 'no directory at /nope' })
+    serveError(404, { contractVersion: '1.1', code: 'DIR_MISSING', message: 'no directory at /nope' })
     const ui = mount()
     await ui.refresh()
 
@@ -119,12 +178,13 @@ describe('empty and error states', () => {
     await ui.refresh()
 
     expect(screen.getByRole('status').textContent).toMatch(/not a readable GLB/)
+    expect(cards()[0].textContent).toContain('unreadable')
     expect(onSelect).not.toHaveBeenCalled()
   })
 })
 
 describe('user interaction', () => {
-  test('choosing another model loads it and records it in the URL', async () => {
+  test('clicking a card loads that model and records its id in the URL', async () => {
     const user = userEvent.setup()
     serveModels([BELL, HELMET])
     const onSelect = vi.fn()
@@ -132,12 +192,32 @@ describe('user interaction', () => {
     await ui.refresh()
     onSelect.mockClear()
 
-    await user.selectOptions(screen.getByRole('combobox', { name: /model/i }), 'helmet-r512.glb')
+    await user.click(screen.getByRole('option', { name: /helmet-r512\.glb/ }))
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect.mock.calls[0][0].name).toBe('helmet-r512.glb')
     expect(onSelect.mock.calls[0][1]).toEqual({ fromUser: true })
-    expect(window.location.search).toBe('?model=helmet-r512.glb')
+    expect(window.location.search).toBe('?id=helmet-r512')
+  })
+
+  test('arrow keys walk down and back up the list', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const onSelect = vi.fn()
+    const ui = mount({ onSelect })
+    await ui.refresh()
+
+    cards()[0].focus()
+    await user.keyboard('{ArrowDown}')
+    expect(ui.selected.name).toBe('helmet-r512.glb')
+
+    await user.keyboard('{ArrowUp}')
+    expect(ui.selected.name).toBe('bell-r512.glb')
+
+    // Already at the top: staying put beats wrapping around to the oldest file.
+    onSelect.mockClear()
+    await user.keyboard('{ArrowUp}')
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   test('the auto rotate checkbox starts on and turns the turntable off', async () => {
@@ -196,8 +276,7 @@ describe('user interaction', () => {
   test('refresh picks up a model generated after the page loaded', async () => {
     const user = userEvent.setup()
     serveModels([HELMET])
-    const onSelect = vi.fn()
-    const ui = mount({ onSelect })
+    const ui = mount()
     await ui.refresh()
     expect(ui.models).toHaveLength(1)
 
@@ -205,12 +284,11 @@ describe('user interaction', () => {
     await user.click(screen.getByRole('button', { name: /refresh/i }))
 
     await waitFor(() => expect(ui.models).toHaveLength(2))
-    expect(screen.getByRole('combobox', { name: /model/i })).toHaveProperty(
-      'value', 'bell-r512.glb')
+    expect(ui.selected.name).toBe('bell-r512.glb')
   })
 })
 
-describe('source image', () => {
+describe('model and image tabs', () => {
   const WITH_SOURCE = model('bell-r512.glb', {
     source: {
       name: 'bell.png',
@@ -222,82 +300,96 @@ describe('source image', () => {
     },
   })
 
-  test('shows the image the mesh was reconstructed from', async () => {
-    serveModels([WITH_SOURCE])
-    const ui = mount()
-    await ui.refresh()
-
-    const img = screen.getByRole('img', { name: /source image for bell-r512\.glb/i })
-    expect(img.getAttribute('src')).toBe('/images/bell.png')
-    expect(img.hidden).toBe(false)
-    expect(document.querySelector('#source-note').textContent).toBe('bell.png (1024x1024, 1.1 MB)')
-  })
-
-  test('says so when a model has no source next to it', async () => {
-    serveModels([HELMET])
-    const ui = mount()
-    await ui.refresh()
-
-    expect(screen.queryByRole('img')).toBe(null)
-    expect(document.querySelector('#source-note').textContent)
-      .toMatch(/No source image next to this model/)
-  })
-
-  test('the toggle hides and shows the panel, and tells the renderer to resize', async () => {
+  test('the image tab shows the picture the mesh was reconstructed from', async () => {
     const user = userEvent.setup()
     serveModels([WITH_SOURCE])
     const onLayoutChange = vi.fn()
     const ui = mount({ onLayoutChange })
     await ui.refresh()
 
-    const panel = document.querySelector('#source-panel')
-    const toggle = screen.getByRole('checkbox', { name: /source image/i })
-    expect(toggle).toHaveProperty('checked', true)
-    expect(panel.hidden).toBe(false)
+    expect(ui.mode).toBe('model')
+    await user.click(screen.getByRole('tab', { name: 'Image' }))
 
-    await user.click(toggle)
-    expect(panel.hidden).toBe(true)
+    expect(ui.mode).toBe('image')
+    const img = screen.getByRole('img', { name: /source image for bell-r512\.glb/i })
+    expect(img.getAttribute('src')).toBe('/images/bell.png')
+    expect(document.querySelector('#source-note').textContent).toBe('bell.png (1024x1024, 1.1 MB)')
+    expect(document.querySelector('#panel-model').hidden).toBe(true)
+
+    // Coming back has to tell the renderer, or the canvas keeps the size it had
+    // while it was hidden.
+    await user.click(screen.getByRole('tab', { name: 'Model' }))
+    expect(document.querySelector('#panel-model').hidden).toBe(false)
     expect(onLayoutChange).toHaveBeenCalledTimes(1)
-
-    await user.click(toggle)
-    expect(panel.hidden).toBe(false)
-    expect(onLayoutChange).toHaveBeenCalledTimes(2)
   })
 
-  test('switching models swaps the image, and clears it when the next has none', async () => {
+  test('a model with no source disables the image tab and says why', async () => {
+    serveModels([HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(screen.getByRole('tab', { name: 'Image' })).toHaveProperty('disabled', true)
+    expect(document.querySelector('#source-note').textContent)
+      .toMatch(/No source image next to this model/)
+    expect(document.querySelector('#source-image').hasAttribute('src')).toBe(false)
+  })
+
+  test('switching to a model with no source leaves the image tab behind', async () => {
     const user = userEvent.setup()
     serveModels([WITH_SOURCE, HELMET])
     const ui = mount()
     await ui.refresh()
-    expect(screen.getByRole('img').getAttribute('src')).toBe('/images/bell.png')
+    await user.click(screen.getByRole('tab', { name: 'Image' }))
+    expect(ui.mode).toBe('image')
 
-    await user.selectOptions(screen.getByRole('combobox', { name: /model/i }), 'helmet-r512.glb')
+    await user.click(screen.getByRole('option', { name: /helmet-r512\.glb/ }))
 
-    expect(screen.queryByRole('img')).toBe(null)
-    expect(document.querySelector('#source-image').hasAttribute('src')).toBe(false)
+    expect(ui.mode).toBe('model')
+    expect(screen.getByRole('tab', { name: 'Image' })).toHaveProperty('disabled', true)
   })
 
   test('an empty directory leaves no stale image behind', async () => {
     serveModels([])
     const ui = mount()
     await ui.refresh()
-    expect(screen.queryByRole('img')).toBe(null)
+    expect(document.querySelector('#source-image').hasAttribute('src')).toBe(false)
   })
 })
 
 describe('pure helpers', () => {
-  test('pickInitial prefers the requested name, then the newest', () => {
+  test('pickInitial prefers the requested id or name, then the newest', () => {
+    expect(pickInitial([BELL, HELMET], 'helmet-r512')).toBe(HELMET)
     expect(pickInitial([BELL, HELMET], 'helmet-r512.glb')).toBe(HELMET)
-    expect(pickInitial([BELL, HELMET], 'gone.glb')).toBe(BELL)
+    expect(pickInitial([BELL, HELMET], 'gone')).toBe(BELL)
     expect(pickInitial([BELL, HELMET], null)).toBe(BELL)
     expect(pickInitial([], 'anything')).toBe(null)
   })
 
-  test('formatBytes and formatCount stay readable at every scale', () => {
+  test('filterModels matches any part of the name, case-insensitively', () => {
+    expect(filterModels([BELL, HELMET], 'HELM')).toEqual([HELMET])
+    expect(filterModels([BELL, HELMET], 'r512')).toEqual([BELL, HELMET])
+    expect(filterModels([BELL, HELMET], '  ')).toEqual([BELL, HELMET])
+  })
+
+  test('the number formats stay readable at every scale', () => {
     expect(formatBytes(512)).toBe('512 B')
     expect(formatBytes(5182056)).toBe('4.9 MB')
     expect(formatBytes(-1)).toBe('?')
     expect(formatCount(140654)).toBe('140,654')
     expect(formatCount(undefined)).toBe('?')
+    expect(formatShortCount(842)).toBe('842')
+    expect(formatShortCount(3810)).toBe('3.8k')
+    expect(formatShortCount(147330)).toBe('147k')
+    expect(formatShortCount(1400000)).toBe('1.4M')
+  })
+
+  test('formatAge counts back from now', () => {
+    const now = Date.parse('2026-07-24T12:00:00Z')
+    expect(formatAge('2026-07-24T11:59:30Z', now)).toBe('just now')
+    expect(formatAge('2026-07-24T11:40:00Z', now)).toBe('20 min ago')
+    expect(formatAge('2026-07-24T09:00:00Z', now)).toBe('3 h ago')
+    expect(formatAge('2026-07-23T11:00:00Z', now)).toBe('yesterday')
+    expect(formatAge('2026-07-18T12:00:00Z', now)).toBe('6 days ago')
+    expect(formatAge('not a date', now)).toBe('?')
   })
 })

@@ -12,10 +12,13 @@ export function createViewer(container) {
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2))
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.05
+  // A model floating with no contact point reads as a render, not an object.
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   container.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x15171c)
+  scene.background = new THREE.Color(0x0c0d11)
 
   // TRELLIS writes PBR materials with real metallic and roughness, and metal
   // renders black without something to reflect. RoomEnvironment is generated in
@@ -23,14 +26,27 @@ export function createViewer(container) {
   const pmrem = new THREE.PMREMGenerator(renderer)
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
 
-  const key = new THREE.DirectionalLight(0xffffff, 1.6)
+  const key = new THREE.DirectionalLight(0xffffff, 1.7)
   key.position.set(3, 5, 4)
+  key.castShadow = true
+  key.shadow.mapSize.set(1024, 1024)
+  key.shadow.bias = -0.0015
   scene.add(key)
   scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x30302f, 0.5))
 
-  const grid = new THREE.GridHelper(4, 20, 0x3a3f4b, 0x24272e)
+  // The floor takes the shadow and nothing else: no albedo, no lighting, so the
+  // model keeps the whole frame and still sits on something.
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(24, 24),
+    new THREE.ShadowMaterial({ opacity: 0.42 }),
+  )
+  floor.rotation.x = -Math.PI / 2
+  floor.receiveShadow = true
+  scene.add(floor)
+
+  const grid = new THREE.GridHelper(4, 20, 0x343a46, 0x20232a)
   grid.material.transparent = true
-  grid.material.opacity = 0.5
+  grid.material.opacity = 0.42
   scene.add(grid)
 
   const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100)
@@ -83,7 +99,7 @@ export function createViewer(container) {
     current = null
   }
 
-  // Scale into a unit-ish box and sit it on the grid, so a 4 cm bolt and a
+  // Scale into a unit-ish box and sit it on the floor, so a 4 cm bolt and a
   // 3 m statue both arrive framed the same way.
   function frame(object) {
     const box = new THREE.Box3().setFromObject(object)
@@ -103,7 +119,18 @@ export function createViewer(container) {
     controls.target.copy(target)
     controls.update()
     home = { position: camera.position.clone(), target: controls.target.clone() }
-    grid.position.y = 0
+
+    // The shadow camera is orthographic and fixed by default, which either
+    // clips a tall model's shadow or wastes the map on empty floor.
+    const extent = Math.max(radius * 2.2, 1)
+    const shadow = key.shadow.camera
+    shadow.left = -extent
+    shadow.right = extent
+    shadow.top = extent
+    shadow.bottom = -extent
+    shadow.near = 0.1
+    shadow.far = extent * 8
+    shadow.updateProjectionMatrix()
   }
 
   function applyWireframe(object) {
@@ -120,6 +147,9 @@ export function createViewer(container) {
         (gltf) => {
           disposeCurrent()
           current = gltf.scene
+          current.traverse((node) => {
+            if (node.isMesh) { node.castShadow = true; node.receiveShadow = true }
+          })
           applyWireframe(current)
           pivot.add(current)
           frame(current)
@@ -156,9 +186,12 @@ export function createViewer(container) {
 
   function tick() {
     if (disposed) return
+    globalThis.requestAnimationFrame(tick)
+    // The image tab hides the stage; a hidden element has no size, and drawing
+    // into it is pure waste on a laptop iGPU that is usually busy generating.
+    if (!container.clientWidth || !container.clientHeight) return
     controls.update()
     renderer.render(scene, camera)
-    globalThis.requestAnimationFrame(tick)
   }
   globalThis.requestAnimationFrame(tick)
 
@@ -188,6 +221,8 @@ export function createViewer(container) {
       disposed = true
       observer?.disconnect()
       disposeCurrent()
+      floor.geometry.dispose()
+      floor.material.dispose()
       pmrem.dispose()
       controls.dispose()
       renderer.dispose()

@@ -67,10 +67,11 @@ A path is not a preview. When the user will want to see the asset, start the tur
 
 ```bash
 python3 layers/preview/src/serve.py --dir out &
-# then point them at http://127.0.0.1:8190/?model=<the file name>
+curl -s "http://127.0.0.1:8190/api/models?id=<stem>" | head    # resolve one asset
+# then point them at http://127.0.0.1:8190/?id=<stem>
 ```
 
-It lists every GLB in the folder newest first, spins the selected one, and has wireframe and orbit controls. Add `--open` to open a browser directly.
+The id of a model is its file name without `.glb`, so a GLB at `out/abc123-r512.glb` is `http://127.0.0.1:8190/?id=abc123-r512`. The page lists every GLB in the folder newest first with its source image, triangle count and age, spins the selected one, and switches to the full-size source image on the Image tab. Add `--open` to open a browser directly.
 
 ## Using it in three.js
 

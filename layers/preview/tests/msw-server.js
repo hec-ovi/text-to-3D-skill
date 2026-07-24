@@ -5,6 +5,7 @@ export const server = setupServer()
 
 export function model(name, extra = {}) {
   return {
+    id: name.replace(/\.glb$/, ''),
     name,
     uri: `/models/${encodeURIComponent(name)}`,
     byteSize: 5204732,
@@ -20,7 +21,7 @@ export function model(name, extra = {}) {
 export function serveModels(models, dir = '/home/hec/workspace/text-to-3D-skill/out') {
   server.use(
     http.get('/api/models', () =>
-      HttpResponse.json({ contractVersion: '1.0', dir, models })),
+      HttpResponse.json({ contractVersion: '1.1', dir, models })),
   )
 }
 

@@ -7,16 +7,17 @@
   "additionalProperties": false,
   "required": ["contractVersion", "dir", "models"],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": { "type": "string", "const": "1.1" },
     "dir": { "type": "string", "description": "Absolute path of the directory being served." },
     "models": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "uri", "byteSize", "modifiedAt"],
+        "required": ["id", "name", "uri", "byteSize", "modifiedAt"],
         "properties": {
-          "name": { "type": "string", "description": "File name, also the value of the ?model= query parameter." },
+          "id": { "type": "string", "description": "Stable URL-safe handle for this model: the file stem, folded to [A-Za-z0-9._-]. Accepted by ?id= on the viewer page and on GET /api/models, so a tool can hand a caller a link to one asset." },
+          "name": { "type": "string", "description": "File name, also accepted by ?model= and ?id=." },
           "uri": { "type": "string", "description": "Path the browser fetches the bytes from, served as model/gltf-binary." },
           "byteSize": { "type": "integer", "minimum": 1 },
           "modifiedAt": { "type": "string", "description": "ISO 8601 UTC mtime. The list is sorted by this, newest first." },
