@@ -11,6 +11,7 @@ const ui = mountUi(app, {
   onRotationChange: (rotation) => viewer.setRotation(rotation),
   onWireframeChange: (on) => viewer.setWireframe(on),
   onResetView: () => viewer.resetView(),
+  onLayoutChange: () => viewer.resize(),
 })
 
 const viewer = createViewer(ui.elements.stage)

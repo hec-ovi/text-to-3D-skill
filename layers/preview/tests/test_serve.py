@@ -257,3 +257,90 @@ def test_unknown_asset_is_a_not_found_envelope(server):
     status, body, _ = get(base + "/nope.js")
     assert status == 404
     validate(json.loads(body), ERROR_SCHEMA)
+
+
+# ---- the source image -------------------------------------------------------
+
+
+def png_bytes(width=64, height=48):
+    import zlib
+    raw = b"".join(b"\x00" + b"\x40\x50\x60" * width for _ in range(height))
+
+    def chunk(tag, payload):
+        return (struct.pack(">I", len(payload)) + tag + payload
+                + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF))
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw))
+            + chunk(b"IEND", b""))
+
+
+def test_the_image_a_mesh_came_from_is_paired_by_name(server):
+    base, directory = server
+    (directory / "subject.png").write_bytes(png_bytes(1024, 1024))
+    (directory / "subject-r512.glb").write_bytes(make_glb())
+
+    payload = json.loads(get(base + "/api/models")[1])
+    validate(payload, MODEL_LIST_SCHEMA)
+    source = payload["models"][0]["source"]
+    assert source["name"] == "subject.png"
+    assert source["uri"] == "/images/subject.png"
+    assert source["mediaType"] == "image/png"
+    assert (source["width"], source["height"]) == (1024, 1024)
+
+
+def test_pairing_works_at_every_resolution(server):
+    base, directory = server
+    (directory / "thing.png").write_bytes(png_bytes())
+    (directory / "thing-r1536.glb").write_bytes(make_glb())
+
+    payload = json.loads(get(base + "/api/models")[1])
+    assert payload["models"][0]["source"]["name"] == "thing.png"
+
+
+def test_a_mesh_with_no_image_beside_it_has_no_source(server):
+    base, directory = server
+    (directory / "orphan-r512.glb").write_bytes(make_glb())
+
+    payload = json.loads(get(base + "/api/models")[1])
+    validate(payload, MODEL_LIST_SCHEMA)
+    assert "source" not in payload["models"][0]
+
+
+def test_the_baked_texture_atlas_is_not_mistaken_for_the_source(server):
+    """The engine writes <stem>-r<res>_base.png; that is an output, not the input."""
+    base, directory = server
+    (directory / "subject-r512.glb").write_bytes(make_glb())
+    (directory / "subject-r512_base.png").write_bytes(png_bytes())
+
+    payload = json.loads(get(base + "/api/models")[1])
+    assert "source" not in payload["models"][0]
+
+
+def test_source_image_bytes_are_served(server):
+    base, directory = server
+    blob = png_bytes(32, 32)
+    (directory / "subject.png").write_bytes(blob)
+    (directory / "subject-r512.glb").write_bytes(make_glb())
+
+    status, body, headers = get(base + "/images/subject.png")
+    assert status == 200
+    assert headers["Content-Type"] == "image/png"
+    assert body == blob
+
+
+def test_the_images_route_refuses_non_images(server):
+    base, directory = server
+    (directory / "secret.txt").write_text("nope")
+    status, body, _ = get(base + "/images/secret.txt")
+    assert status == 404
+    validate(json.loads(body), ERROR_SCHEMA)
+    assert b"nope" not in body
+
+
+def test_the_images_route_refuses_traversal(server):
+    base, directory = server
+    (directory.parent / "outside.png").write_bytes(png_bytes())
+    status, _body, _ = get(base + "/images/..%2Foutside.png")
+    assert status in (403, 404)

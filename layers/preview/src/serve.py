@@ -19,6 +19,7 @@ import json
 import mimetypes
 import os
 import posixpath
+import re
 import struct
 import sys
 import urllib.parse
@@ -41,12 +42,60 @@ TYPES = {
     ".json": "application/json; charset=utf-8",
     ".glb": "model/gltf-binary",
     ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
 }
 
 GLB_MAGIC = 0x46546C67
 CHUNK_JSON = 0x4E4F534A
+
+# image2mesh names its output <image-stem>-r<resolution>.glb, so the picture a
+# mesh came from is derivable rather than something to guess at.
+SOURCE_SUFFIX = re.compile(r"-r\d+$")
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg",
+               ".jpeg": "image/jpeg", ".webp": "image/webp"}
+
+
+def png_size(path):
+    """(width, height) from a PNG IHDR, or None for anything else."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(24)
+    except OSError:
+        return None
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        return None
+    return struct.unpack(">II", head[16:24])
+
+
+def find_source(directory, glb_name):
+    """The image `glb_name` was reconstructed from, if it sits in the same folder.
+
+    Only the exact stem matches, which is what keeps the engine's own
+    `<stem>-r<res>_base.png` texture atlas out of this: that file is an output,
+    and showing it as the source would misrepresent what the mesh came from.
+    """
+    stem = SOURCE_SUFFIX.sub("", os.path.splitext(glb_name)[0])
+    if not stem:
+        return None
+    for ext, media in IMAGE_TYPES.items():
+        candidate = stem + ext
+        path = os.path.join(directory, candidate)
+        if not os.path.isfile(path):
+            continue
+        entry = {
+            "name": candidate,
+            "uri": "/images/" + urllib.parse.quote(candidate),
+            "byteSize": os.path.getsize(path),
+            "mediaType": media,
+        }
+        size = png_size(path)
+        if size:
+            entry["width"], entry["height"] = size
+        return entry
+    return None
 
 
 def glb_stats(path):
@@ -120,6 +169,9 @@ def list_models(directory):
         else:
             entry["readable"] = True
             entry.update(stats)
+        source = find_source(directory, name)
+        if source:
+            entry["source"] = source
         models.append(entry)
 
     models.sort(key=lambda m: m["modifiedAt"], reverse=True)
@@ -191,6 +243,12 @@ def make_handler(models_dir):
 
             if path.startswith("/models/"):
                 return self._file(models_dir, urllib.parse.unquote(path[len("/models/"):]))
+
+            if path.startswith("/images/"):
+                name = urllib.parse.unquote(path[len("/images/"):])
+                if os.path.splitext(name)[1].lower() not in IMAGE_TYPES:
+                    return self._error(404, "NOT_FOUND", f"not an image: {name}")
+                return self._file(models_dir, name)
 
             if path == "/":
                 return self._file(WEB, "index.html")

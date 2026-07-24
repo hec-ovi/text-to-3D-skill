@@ -210,6 +210,81 @@ describe('user interaction', () => {
   })
 })
 
+describe('source image', () => {
+  const WITH_SOURCE = model('bell-r512.glb', {
+    source: {
+      name: 'bell.png',
+      uri: '/images/bell.png',
+      byteSize: 1181070,
+      mediaType: 'image/png',
+      width: 1024,
+      height: 1024,
+    },
+  })
+
+  test('shows the image the mesh was reconstructed from', async () => {
+    serveModels([WITH_SOURCE])
+    const ui = mount()
+    await ui.refresh()
+
+    const img = screen.getByRole('img', { name: /source image for bell-r512\.glb/i })
+    expect(img.getAttribute('src')).toBe('/images/bell.png')
+    expect(img.hidden).toBe(false)
+    expect(document.querySelector('#source-note').textContent).toBe('bell.png (1024x1024, 1.1 MB)')
+  })
+
+  test('says so when a model has no source next to it', async () => {
+    serveModels([HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(screen.queryByRole('img')).toBe(null)
+    expect(document.querySelector('#source-note').textContent)
+      .toMatch(/No source image next to this model/)
+  })
+
+  test('the toggle hides and shows the panel, and tells the renderer to resize', async () => {
+    const user = userEvent.setup()
+    serveModels([WITH_SOURCE])
+    const onLayoutChange = vi.fn()
+    const ui = mount({ onLayoutChange })
+    await ui.refresh()
+
+    const panel = document.querySelector('#source-panel')
+    const toggle = screen.getByRole('checkbox', { name: /source image/i })
+    expect(toggle).toHaveProperty('checked', true)
+    expect(panel.hidden).toBe(false)
+
+    await user.click(toggle)
+    expect(panel.hidden).toBe(true)
+    expect(onLayoutChange).toHaveBeenCalledTimes(1)
+
+    await user.click(toggle)
+    expect(panel.hidden).toBe(false)
+    expect(onLayoutChange).toHaveBeenCalledTimes(2)
+  })
+
+  test('switching models swaps the image, and clears it when the next has none', async () => {
+    const user = userEvent.setup()
+    serveModels([WITH_SOURCE, HELMET])
+    const ui = mount()
+    await ui.refresh()
+    expect(screen.getByRole('img').getAttribute('src')).toBe('/images/bell.png')
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /model/i }), 'helmet-r512.glb')
+
+    expect(screen.queryByRole('img')).toBe(null)
+    expect(document.querySelector('#source-image').hasAttribute('src')).toBe(false)
+  })
+
+  test('an empty directory leaves no stale image behind', async () => {
+    serveModels([])
+    const ui = mount()
+    await ui.refresh()
+    expect(screen.queryByRole('img')).toBe(null)
+  })
+})
+
 describe('pure helpers', () => {
   test('pickInitial prefers the requested name, then the newest', () => {
     expect(pickInitial([BELL, HELMET], 'helmet-r512.glb')).toBe(HELMET)

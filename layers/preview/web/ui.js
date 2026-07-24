@@ -58,9 +58,18 @@ const CONTROLS = `
   <label class="field" for="speed">Speed</label>
   <input id="speed" type="range" min="0" max="6" step="0.5" value="1.5" aria-label="Rotation speed">
   <label class="toggle"><input id="wireframe" type="checkbox"> Wireframe</label>
+  <label class="toggle"><input id="show-source" type="checkbox" checked> Source image</label>
   <button id="reset-view" type="button">Reset view</button>
 </header>
-<div class="stage" id="stage"></div>
+<div class="stage-wrap">
+  <div class="stage" id="stage"></div>
+  <aside class="source" id="source-panel">
+    <figure>
+      <img id="source-image" alt="" hidden>
+      <figcaption id="source-note">No source image next to this model.</figcaption>
+    </figure>
+  </aside>
+</div>
 <footer class="bar stats">
   <output id="status" role="status">Loading…</output>
   <span class="spacer"></span>
@@ -78,6 +87,7 @@ export function mountUi(root, options = {}) {
     onRotationChange = () => {},
     onWireframeChange = () => {},
     onResetView = () => {},
+    onLayoutChange = () => {},
     fetchImpl = globalThis.fetch,
     search = '',
     history = globalThis.history,
@@ -94,6 +104,10 @@ export function mountUi(root, options = {}) {
     status: root.querySelector('#status'),
     stats: root.querySelector('#stats'),
     stage: root.querySelector('#stage'),
+    showSource: root.querySelector('#show-source'),
+    sourcePanel: root.querySelector('#source-panel'),
+    sourceImage: root.querySelector('#source-image'),
+    sourceNote: root.querySelector('#source-note'),
   }
 
   let models = []
@@ -122,6 +136,25 @@ export function mountUi(root, options = {}) {
     return entries
   }
 
+  // The picture the mesh was reconstructed from, side by side with it. Seeing
+  // both is the only way to tell a bad reconstruction from a bad prompt.
+  function showSource(model) {
+    const source = model && model.source
+    if (source) {
+      el.sourceImage.src = source.uri
+      el.sourceImage.alt = `Source image for ${model.name}`
+      el.sourceImage.hidden = false
+      const dims = source.width && source.height ? `${source.width}x${source.height}, ` : ''
+      el.sourceNote.textContent = `${source.name} (${dims}${formatBytes(source.byteSize)})`
+    } else {
+      el.sourceImage.removeAttribute('src')
+      el.sourceImage.alt = ''
+      el.sourceImage.hidden = true
+      el.sourceNote.textContent = 'No source image next to this model.'
+    }
+    el.sourcePanel.hidden = !el.showSource.checked
+  }
+
   function rememberInUrl(name) {
     if (!history || typeof history.replaceState !== 'function') return
     const url = new URL(globalThis.location?.href ?? 'http://localhost/')
@@ -134,6 +167,7 @@ export function mountUi(root, options = {}) {
     if (!model) return
     el.select.value = name
     setStats(statsFor(model))
+    showSource(model)
     if (model.readable === false) {
       setStatus(`${model.name} is not a readable GLB`, 'error')
       return
@@ -166,6 +200,7 @@ export function mountUi(root, options = {}) {
     if (!models.length) {
       el.select.disabled = true
       setStats([])
+      showSource(null)
       setStatus(`No .glb files in ${payload.dir}. Generate one with the pipeline, then hit Refresh.`,
                 'empty')
       return models
@@ -180,6 +215,7 @@ export function mountUi(root, options = {}) {
       onSelect(initial, { fromUser: false })
       el.select.value = initial.name
       setStats(statsFor(initial))
+      showSource(initial)
       rememberInUrl(initial.name)
       return models
     }
@@ -195,6 +231,11 @@ export function mountUi(root, options = {}) {
     onRotationChange({ enabled: el.autorotate.checked, speed: Number(el.speed.value) }))
   el.wireframe.addEventListener('change', () => onWireframeChange(el.wireframe.checked))
   el.reset.addEventListener('click', () => onResetView())
+  el.showSource.addEventListener('change', () => {
+    el.sourcePanel.hidden = !el.showSource.checked
+    // The 3D viewport just changed width; the renderer has to be told.
+    onLayoutChange()
+  })
 
   return {
     elements: el,
