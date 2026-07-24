@@ -37,12 +37,22 @@ ls /home/hec/models/gguf/trellis2/*.gguf | wc -l    # want 10
 command -v blender || ls /home/hec/opt/blender-*/blender    # only for rigging
 ```
 
-- ComfyUI down: `cd ../comfyui-strix-docker && docker compose up -d`, then wait for `/system_stats` to answer.
+- ComfyUI down: `cd ../comfyui-strix-docker && docker compose up -d`, then wait for `/system_stats` to answer. The first render after a start pays a full weight load: measured at 333 s against 10 to 14 s warm. That is not a hang.
+- A mesh run since the last image render evicts klein's weights, and the next image pays that load again: measured at 516 s. See [Batch](#batch); it applies to two assets, not just to ten.
 - Engine image missing: `cd layers/image2mesh && docker build -f docker/Dockerfile -t text-to-3d/engine:vulkan .`
 - Weights missing or short: `scripts/fetch-models.sh` (20 GB, checksummed, resumable).
 
 <a id="generate"></a>
 ## Generate
+
+### Write the prompt first
+
+The prompt is already wrapped in framing that asks for one complete, centred, evenly lit object, so do not repeat that. What you supply is the **subject**, and it decides what you get:
+
+- **Name the whole object and its parts.** "a sword" produced a bare blade with no hilt, no crossguard and no grip, measured, and the reconstruction faithfully rebuilt that blade. "a medieval longsword with a leather-wrapped grip, a steel crossguard and a round pommel" is the same effort and a whole sword.
+- **Say the material and the style.** "brass", "weathered oak", "matte plastic", "low-poly stylised". klein renders what it is told.
+- **For a character, describe the stance, never the action.** Ask for "standing straight, arms slightly away from the body, facing forward". A prompt like "a warrior walking" bakes a stride into the mesh, and the rig binds in whatever pose it is handed: the walk clip is then applied on top of a walking pose and the motion doubles. The movement comes from [Rig](#rig), not from the picture.
+- **One subject.** Two things in a prompt gets you one confused thing.
 
 ```bash
 python3 layers/pipeline/src/pipeline.py --prompt "a brass diving helmet" --out-dir out
@@ -71,6 +81,8 @@ Prints a JSON envelope; `--glb-path-only` prints just the path, for piping. Two 
 
 The GLB is validated before you see it: glTF magic, container version 2, a JSON chunk that parses, a BIN chunk, at least one mesh. `triangles` is counted from the file, not predicted.
 
+**Then look at it.** Validation proves a loader can open the file, not that the object is right; a blade with no hilt validates perfectly. Open the intermediate PNG next to the GLB, or the [Preview](#preview) page, and check the subject is complete before you tell the user it is done. If a part is missing, that is a prompt problem: name the missing part and generate again.
+
 <a id="lowpoly"></a>
 ## Low poly
 
@@ -80,7 +92,7 @@ The GLB is validated before you see it: glTF magic, container version 2, a JSON 
 python3 layers/pipeline/src/pipeline.py --prompt "a viking warrior" --target-faces 6000 --out-dir out
 ```
 
-Rough budgets: a few thousand faces for a game prop, 5K to 10K for a stylised character, 20K to 50K for a hero asset, the default when the mesh is going into a renderer rather than an engine. Decimate **before** rigging, always: simplifying a skinned mesh throws its weights away.
+**Pass it whenever the asset is for a game, an engine or a web scene**, which is most of the time. Without it a prop arrives at 143600 triangles and 4.2 MB, measured on a sword, which is renderer-grade and nobody's game budget. Rough budgets: a few thousand faces for a prop, 5K to 10K for a stylised character, 20K to 50K for a hero asset, the default only when the mesh is going into an offline renderer. Decimate **before** rigging, always: simplifying a skinned mesh throws its weights away.
 
 <a id="rig"></a>
 ## Rig
