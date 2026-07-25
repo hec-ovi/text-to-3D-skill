@@ -1,55 +1,38 @@
 // The WebGL half: one turntable that loads a GLB, frames it, and spins it.
 // Nothing in here touches the page's controls; it exposes a small API that
 // ui.js drives.
+//
+// The look lives in studio.js, shared with the gallery thumbnails. What is here
+// is the render graph and the model's lifecycle.
 
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 
-export function createViewer(container) {
+import { buildStudio, frameObject, placeCamera, upgradeTextures, TONE_MAPPING, EXPOSURE } from './studio.js'
+
+export function createViewer(container, { quality = true } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2))
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.05
+  renderer.toneMapping = TONE_MAPPING
+  renderer.toneMappingExposure = EXPOSURE
   // A model floating with no contact point reads as a render, not an object.
   renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.shadowMap.type = THREE.PCFShadowMap
   container.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x0c0d11)
+  const studio = buildStudio(scene, renderer)
 
-  // TRELLIS writes PBR materials with real metallic and roughness, and metal
-  // renders black without something to reflect. RoomEnvironment is generated in
-  // code, so the page still needs no downloaded asset.
-  const pmrem = new THREE.PMREMGenerator(renderer)
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-
-  const key = new THREE.DirectionalLight(0xffffff, 1.7)
-  key.position.set(3, 5, 4)
-  key.castShadow = true
-  key.shadow.mapSize.set(1024, 1024)
-  key.shadow.bias = -0.0015
-  scene.add(key)
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x30302f, 0.5))
-
-  // The floor takes the shadow and nothing else: no albedo, no lighting, so the
-  // model keeps the whole frame and still sits on something.
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(24, 24),
-    new THREE.ShadowMaterial({ opacity: 0.42 }),
-  )
-  floor.rotation.x = -Math.PI / 2
-  floor.receiveShadow = true
-  scene.add(floor)
-
-  const grid = new THREE.GridHelper(4, 20, 0x343a46, 0x20232a)
-  grid.material.transparent = true
-  grid.material.opacity = 0.42
-  scene.add(grid)
-
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100)
+  // near/far are tight on purpose. The ambient-occlusion pass reads the depth
+  // buffer, and a 0.01-to-100 range spends its precision on empty space, which
+  // shows up as AO crawling over flat surfaces as the camera moves.
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 80)
   camera.position.set(1.6, 1.1, 1.9)
 
   const controls = new OrbitControls(camera, renderer.domElement)
@@ -59,15 +42,67 @@ export function createViewer(container) {
   controls.autoRotateSpeed = 1.5
   controls.minDistance = 0.2
   controls.maxDistance = 20
+  // Orbiting under the floor shows the model from below through the shadow
+  // plane, which is never what anyone wants from a turntable.
+  controls.maxPolarAngle = Math.PI * 0.495
+
+  const grid = new THREE.GridHelper(4, 20, 0x343a46, 0x20232a)
+  grid.material.transparent = true
+  grid.material.opacity = 0.35
+  grid.visible = false
+  grid.position.y = 0.001
+  scene.add(grid)
+
+  // Multisampling has to be asked for explicitly once the composer owns the
+  // frame: `antialias: true` only applies to the default framebuffer, and
+  // dropping it turns every silhouette into a staircase.
+  const composer = new EffectComposer(
+    renderer,
+    new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }),
+  )
+  composer.addPass(new RenderPass(scene, camera))
+
+  // The single biggest readability win on a reconstructed mesh. TRELLIS bakes
+  // no occlusion into the atlas, so every crevice, eye socket and panel gap is
+  // lit exactly as brightly as the surface beside it and the form goes flat.
+  const gtao = new GTAOPass(scene, camera, 1, 1)
+  gtao.output = GTAOPass.OUTPUT.Default
+  gtao.blendIntensity = 0.9
+  // Radius is in world units and the model is framed into a 1.4-unit box, so
+  // 0.12 is roughly a finger's width on a human figure: it catches the join
+  // between arm and torso without darkening the whole chest.
+  gtao.updateGtaoMaterial({
+    radius: 0.12,
+    distanceExponent: 1.0,
+    thickness: 0.4,
+    scale: 1.0,
+    samples: 16,
+    distanceFallOff: 1.0,
+    screenSpaceRadius: false,
+  })
+  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 })
+  composer.addPass(gtao)
+
+  // Threshold above white in the linear pass, so only a genuine specular hit
+  // blooms. At 1.0 and strength 0.28 the whole figure wore a halo, because
+  // polished armour lit by a 6.5 soft box is over 1.0 across most of its area.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.12, 0.45, 1.25)
+  composer.addPass(bloom)
+
+  // Tone mapping and the sRGB conversion happen here rather than in the
+  // material, because the composer's targets are linear and the renderer only
+  // applies them when it draws to the canvas.
+  composer.addPass(new OutputPass())
 
   const loader = new GLTFLoader()
   const pivot = new THREE.Group()
   scene.add(pivot)
-  const clock = new THREE.Clock()
+  const timer = new THREE.Timer()
 
   let current = null
   let home = { position: camera.position.clone(), target: controls.target.clone() }
   let wireframe = false
+  let highQuality = quality
   let disposed = false
   let mixer = null
   let clips = []
@@ -78,6 +113,10 @@ export function createViewer(container) {
     const { clientWidth: w, clientHeight: h } = container
     if (!w || !h) return
     renderer.setSize(w, h, false)
+    composer.setSize(w, h)
+    const ratio = renderer.getPixelRatio()
+    gtao.setSize(w * ratio, h * ratio)
+    bloom.setSize(w * ratio, h * ratio)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
   }
@@ -111,40 +150,6 @@ export function createViewer(container) {
     current = null
   }
 
-  // Scale into a unit-ish box and sit it on the floor, so a 4 cm bolt and a
-  // 3 m statue both arrive framed the same way.
-  function frame(object) {
-    const box = new THREE.Box3().setFromObject(object)
-    const size = box.getSize(new THREE.Vector3())
-    const centre = box.getCenter(new THREE.Vector3())
-    const longest = Math.max(size.x, size.y, size.z) || 1
-    const scale = 1.4 / longest
-
-    object.scale.setScalar(scale)
-    object.position.copy(centre).multiplyScalar(-scale)
-    object.position.y += (size.y * scale) / 2
-
-    const radius = (longest * scale) / 2
-    const distance = radius / Math.sin((camera.fov * Math.PI) / 360) * 1.6
-    const target = new THREE.Vector3(0, (size.y * scale) / 2, 0)
-    camera.position.set(distance * 0.62, target.y + distance * 0.42, distance * 0.72)
-    controls.target.copy(target)
-    controls.update()
-    home = { position: camera.position.clone(), target: controls.target.clone() }
-
-    // The shadow camera is orthographic and fixed by default, which either
-    // clips a tall model's shadow or wastes the map on empty floor.
-    const extent = Math.max(radius * 2.2, 1)
-    const shadow = key.shadow.camera
-    shadow.left = -extent
-    shadow.right = extent
-    shadow.top = extent
-    shadow.bottom = -extent
-    shadow.near = 0.1
-    shadow.far = extent * 8
-    shadow.updateProjectionMatrix()
-  }
-
   function applyWireframe(object) {
     object.traverse((node) => {
       if (!node.isMesh) return
@@ -165,9 +170,16 @@ export function createViewer(container) {
             // the animation, so it culls out of frame mid-clip without this.
             if (node.isSkinnedMesh) node.frustumCulled = false
           })
+          upgradeTextures(current, renderer)
           applyWireframe(current)
           pivot.add(current)
-          frame(current)
+
+          const framed = frameObject(current)
+          placeCamera(camera, framed)
+          controls.target.copy(framed.target)
+          controls.update()
+          home = { position: camera.position.clone(), target: controls.target.clone() }
+          studio.fitShadow(framed.radius)
 
           clips = gltf.animations || []
           if (clips.length) {
@@ -226,6 +238,20 @@ export function createViewer(container) {
     if (current) applyWireframe(current)
   }
 
+  /**
+   * Off drops the ambient occlusion and the bloom and draws straight to the
+   * canvas. The generating box is usually mid-inference on the same iGPU, and
+   * a stuttering turntable is worse than a plainer one.
+   */
+  function setQuality(on) {
+    highQuality = on
+  }
+
+  function setGrid(on) {
+    grid.visible = on
+    if (studio.ground) studio.ground.visible = !on
+  }
+
   function resetView() {
     camera.position.copy(home.position)
     controls.target.copy(home.target)
@@ -237,11 +263,13 @@ export function createViewer(container) {
     globalThis.requestAnimationFrame(tick)
     // The image tab hides the stage; a hidden element has no size, and drawing
     // into it is pure waste on a laptop iGPU that is usually busy generating.
-    const delta = clock.getDelta()
+    timer.update()
+    const delta = timer.getDelta()
     if (!container.clientWidth || !container.clientHeight) return
     if (mixer) mixer.update(delta)
     controls.update()
-    renderer.render(scene, camera)
+    if (highQuality) composer.render(delta)
+    else renderer.render(scene, camera)
   }
   globalThis.requestAnimationFrame(tick)
 
@@ -256,6 +284,8 @@ export function createViewer(container) {
       polar: controls.getPolarAngle(),
       distance: controls.getDistance(),
       wireframe,
+      quality: highQuality,
+      grid: grid.visible,
       hasModel: Boolean(current),
       clips: clips.map((c) => c.name),
       clip: action ? action.getClip().name : null,
@@ -264,11 +294,17 @@ export function createViewer(container) {
   }
 
   return {
+    // The graph itself, for the console and for the screenshot checks. Nothing
+    // in the page reads these; they are here so a render bug can be measured
+    // rather than argued about.
+    debug: { scene, camera, renderer, studio, composer },
     load,
     play,
     setPlaying,
     setRotation,
     setWireframe,
+    setQuality,
+    setGrid,
     resetView,
     resize,
     getState,
@@ -276,9 +312,10 @@ export function createViewer(container) {
       disposed = true
       observer?.disconnect()
       disposeCurrent()
-      floor.geometry.dispose()
-      floor.material.dispose()
-      pmrem.dispose()
+      grid.geometry.dispose()
+      grid.material.dispose()
+      studio.dispose()
+      composer.dispose()
       controls.dispose()
       renderer.dispose()
       renderer.domElement.remove()

@@ -24,7 +24,7 @@ Entry point: `python3 src/serve.py --dir ../../out`. Python 3.10+, standard libr
 | `ModelList` from `GET /api/models?id=<id>` | [`schema/model_list.json`](schema/model_list.json) | The same envelope holding exactly the one matching entry, so a caller that resolved an id parses what it parses for a list. `404 NOT_FOUND` when nothing matches. |
 | GLB bytes from `GET /models/<name>` | none: the file verbatim | Served as `model/gltf-binary`, with an `ETag` over mtime and size and `Cache-Control: no-cache`. A reload revalidates and gets a 304; a regenerated asset changes both mtime and size, so a stale file can never win. |
 | Image bytes from `GET /images/<name>` | none: the file verbatim | Only `.png`, `.jpg`, `.jpeg` and `.webp` are served; anything else is a `NOT_FOUND`. Same `ETag` handling. |
-| The viewer page from `GET /` | none: HTML, CSS and ES modules | A scrolling list of every model on the left, each card carrying its source image, triangle count, size and age; the selected model on a turntable, or its source image, behind two tabs; and, for a rigged asset, a Motion panel that plays the clips the file carries. |
+| The viewer page from `GET /` | none: HTML, CSS and ES modules | Two layouts over one model list. Gallery: a grid of cards, each showing that GLB rendered in the browser, with its triangle count, size and age. Single: the same list down the left, the selected model on a turntable or its source image behind two tabs, and, for a rigged asset, a Motion panel that plays the clips the file carries. |
 
 ## Events
 

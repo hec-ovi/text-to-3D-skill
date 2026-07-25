@@ -435,6 +435,117 @@ describe('motion', () => {
   })
 })
 
+describe('render controls', () => {
+  test('the grid checkbox reports to the viewer both ways', async () => {
+    const user = userEvent.setup()
+    const onGridChange = vi.fn()
+    mount({ onGridChange })
+
+    const toggle = screen.getByRole('checkbox', { name: /grid/i })
+    expect(toggle).toHaveProperty('checked', false)
+
+    await user.click(toggle)
+    expect(onGridChange).toHaveBeenLastCalledWith(true)
+    await user.click(toggle)
+    expect(onGridChange).toHaveBeenLastCalledWith(false)
+  })
+
+  test('quality starts on, so the page opens on the good render', async () => {
+    const user = userEvent.setup()
+    const onQualityChange = vi.fn()
+    const ui = mount({ onQualityChange })
+
+    const toggle = screen.getByRole('checkbox', { name: /quality/i })
+    expect(toggle).toHaveProperty('checked', true)
+    expect(ui.quality).toBe(true)
+
+    await user.click(toggle)
+    expect(onQualityChange).toHaveBeenLastCalledWith(false)
+    expect(ui.quality).toBe(false)
+  })
+})
+
+describe('gallery', () => {
+  test('the page opens on the turntable and the toggle swaps the layout', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const onLayoutChange = vi.fn()
+    const ui = mount({ onLayoutChange })
+    await ui.refresh()
+
+    const app = document.getElementById('app')
+    expect(app.dataset.view).toBe('single')
+    expect(screen.getByRole('button', { name: 'Single' }).getAttribute('aria-pressed')).toBe('true')
+
+    await user.click(screen.getByRole('button', { name: 'Gallery' }))
+    expect(app.dataset.view).toBe('gallery')
+    expect(ui.view).toBe('gallery')
+    expect(screen.getByRole('button', { name: 'Gallery' }).getAttribute('aria-pressed')).toBe('true')
+    // The canvas was display:none and comes back at a new size.
+    expect(onLayoutChange).toHaveBeenCalled()
+
+    // One list, two layouts: the cards are the same elements either way.
+    expect(cardNames()).toEqual(['bell-r512.glb', 'helmet-r512.glb'])
+  })
+
+  test('clicking a card in the gallery opens it on the turntable', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const onSelect = vi.fn()
+    const ui = mount({ onSelect })
+    await ui.refresh()
+    await user.click(screen.getByRole('button', { name: 'Gallery' }))
+
+    await user.click(screen.getByRole('option', { name: /helmet-r512\.glb/ }))
+
+    expect(ui.view).toBe('single')
+    expect(ui.selected.name).toBe('helmet-r512.glb')
+    expect(onSelect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'helmet-r512.glb' }), { fromUser: true })
+  })
+
+  test('a card shows the GLB rendered, not the picture it was made from', async () => {
+    const withSource = model('bell-r512.glb', {
+      source: { name: 'bell.png', uri: '/images/bell.png', byteSize: 1181070 },
+    })
+    serveModels([withSource])
+    const onThumbnail = vi.fn(async () => 'data:image/webp;base64,RENDERED')
+    const ui = mount({ onThumbnail })
+    await ui.refresh()
+
+    const thumb = cards()[0].querySelector('.thumb')
+    await waitFor(() =>
+      expect(thumb.querySelector('img').getAttribute('src')).toBe('data:image/webp;base64,RENDERED'))
+    expect(onThumbnail).toHaveBeenCalledWith(expect.objectContaining({ name: 'bell-r512.glb' }))
+    expect(thumb.classList.contains('thumb-render')).toBe(true)
+    expect(thumb.classList.contains('thumb-pending')).toBe(false)
+  })
+
+  test('a thumbnail that fails to render falls back to the source image', async () => {
+    const withSource = model('bell-r512.glb', {
+      source: { name: 'bell.png', uri: '/images/bell.png', byteSize: 1181070 },
+    })
+    serveModels([withSource])
+    const ui = mount({ onThumbnail: async () => { throw new Error('context lost') } })
+    await ui.refresh()
+
+    const thumb = cards()[0].querySelector('.thumb')
+    await waitFor(() =>
+      expect(thumb.querySelector('img').getAttribute('src')).toBe('/images/bell.png'))
+    expect(thumb.classList.contains('thumb-pending')).toBe(false)
+  })
+
+  test('an unreadable GLB is never handed to the renderer for a thumbnail', async () => {
+    serveModels([model('broken.glb', { readable: false, triangles: undefined })])
+    const onThumbnail = vi.fn(async () => 'data:image/webp;base64,RENDERED')
+    const ui = mount({ onThumbnail })
+    await ui.refresh()
+
+    expect(onThumbnail).not.toHaveBeenCalled()
+    expect(cards()[0].querySelector('.thumb').classList.contains('thumb-empty')).toBe(true)
+  })
+})
+
 describe('pure helpers', () => {
   test('pickInitial prefers the requested id or name, then the newest', () => {
     expect(pickInitial([BELL, HELMET], 'helmet-r512')).toBe(HELMET)

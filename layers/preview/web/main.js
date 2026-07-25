@@ -1,22 +1,30 @@
-// Wiring only: the controls from ui.js, the turntable from scene.js.
+// Wiring only: the controls from ui.js, the turntable from scene.js, the card
+// art from thumbs.js.
 
 import { mountUi, formatCount } from './ui.js'
 import { createViewer } from './scene.js'
+import { createThumbnailer } from './thumbs.js'
 
 const app = document.getElementById('app')
+const thumbnailer = createThumbnailer()
 
 const ui = mountUi(app, {
   search: window.location.search,
   onSelect: (model) => show(model),
   onRotationChange: (rotation) => viewer.setRotation(rotation),
   onWireframeChange: (on) => viewer.setWireframe(on),
+  onGridChange: (on) => viewer.setGrid(on),
+  onQualityChange: (on) => viewer.setQuality(on),
   onResetView: () => viewer.resetView(),
   onLayoutChange: () => viewer.resize(),
   onClipChange: (name) => viewer.play(name),
   onPlayingChange: (on) => viewer.setPlaying(on),
+  // Keyed on the modification time as well as the path, so regenerating an
+  // asset under the same name draws a new card instead of serving the old one.
+  onThumbnail: (model) => thumbnailer.get(`${model.uri}#${model.modifiedAt}`, model.uri),
 })
 
-const viewer = createViewer(ui.elements.stage)
+const viewer = createViewer(ui.elements.stage, { quality: ui.quality })
 viewer.setRotation(ui.rotation)
 
 async function show(model) {
@@ -36,7 +44,7 @@ async function show(model) {
 
 // Debug handle: lets the console, and the screenshot check in the README, ask
 // the turntable where it is without reading the framebuffer back.
-window.__t2m = { ui, viewer }
+window.__t2m = { ui, viewer, thumbnailer }
 
 ui.refresh({ keepSelection: false })
 

@@ -44,6 +44,24 @@ html, body {
 .dim { color: var(--dim); font-weight: 400; }
 .spacer { flex: 1 1 auto; }
 
+.topbar input[type="search"] { width: 190px; }
+.topbar .count { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+.views { display: inline-flex; }
+.views button {
+  border-radius: 0;
+  color: var(--dim);
+  padding: 4px 12px;
+}
+.views button:first-child { border-radius: 6px 0 0 6px; }
+.views button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.views button[aria-pressed="true"] {
+  color: var(--text);
+  background: #232833;
+  border-color: #3a4150;
+  position: relative;
+}
+
 select, button, input[type="range"], input[type="search"] {
   font: inherit;
   color: var(--text);
@@ -89,7 +107,7 @@ output[data-kind="error"] { color: var(--error); }
 
 .sidebar {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   gap: 8px;
   padding: 10px;
   min-height: 0;
@@ -152,6 +170,7 @@ output[data-kind="error"] { color: var(--error); }
 }
 
 .thumb {
+  position: relative;
   display: grid;
   place-items: center;
   width: 54px;
@@ -162,7 +181,32 @@ output[data-kind="error"] { color: var(--error); }
   background: #0a0b0e;
 }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb-empty { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; }
+.thumb img:not([src]) { display: none; }
+
+/* A card whose picture is still being rendered. The sweep is deliberately slow:
+   a fast shimmer on twenty cards at once reads as an error state. */
+.thumb-pending::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, #1e222b 50%, transparent 80%);
+  background-size: 240% 100%;
+  animation: sweep 1.6s ease-in-out infinite;
+}
+@keyframes sweep {
+  from { background-position: 140% 0; }
+  to { background-position: -40% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thumb-pending::after { animation: none; background: #15181f; }
+}
+
+.thumb-empty::after {
+  content: "GLB";
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
 
 .meta { display: grid; gap: 2px; min-width: 0; }
 .meta .name {
@@ -249,7 +293,7 @@ output[data-kind="error"] { color: var(--error); }
   padding-bottom: 6px;
 }
 
-.panel { min-height: 0; min-width: 0; }
+.panel { position: relative; min-height: 0; min-width: 0; }
 .panel[hidden] { display: none; }
 
 .stage {
@@ -259,6 +303,28 @@ output[data-kind="error"] { color: var(--error); }
   background: radial-gradient(circle at 50% 38%, #1b1f28 0%, var(--bg) 68%);
 }
 .stage canvas { display: block; width: 100%; height: 100%; }
+
+/* Render controls belong over the render, not in a bar at the top of the page
+   next to the file list. Floating them keeps the topbar for finding a model. */
+.stage-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid #2b303b;
+  background: rgba(16, 18, 23, 0.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  max-width: calc(100% - 24px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.stage-controls button { border-radius: 999px; }
 
 .image-panel {
   display: grid;
@@ -308,12 +374,67 @@ dl#stats dd {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- gallery ------------------------------------------------------------ */
+
+/* Same cards, same selection, wider. Everything that only makes sense beside a
+   turntable steps out of the way. */
+#app[data-view="gallery"] .body { grid-template-columns: 1fr; }
+#app[data-view="gallery"] .viewer,
+#app[data-view="gallery"] .sidebar-head,
+#app[data-view="gallery"] .motion { display: none; }
+
+#app[data-view="gallery"] .sidebar {
+  grid-template-rows: 1fr auto;
+  border-right: none;
+  background: var(--bg);
+  padding: 16px;
+}
+
+#app[data-view="gallery"] .model-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  align-content: start;
+  gap: 16px;
+}
+
+#app[data-view="gallery"] .card {
+  grid-template-columns: 1fr;
+  /* auto, not 1fr: the thumbnail sets its own height from its aspect ratio, and
+     a 1fr row takes the whole card and pushes the name out of the bottom. */
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--panel);
+  border-color: var(--line);
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+#app[data-view="gallery"] .card:hover { transform: translateY(-2px); border-color: #3d4553; }
+#app[data-view="gallery"] .card.selected { box-shadow: none; border-color: var(--accent); }
+
+#app[data-view="gallery"] .thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+}
+#app[data-view="gallery"] .thumb img { object-fit: contain; }
+#app[data-view="gallery"] .meta { padding: 9px 11px 10px; }
+
 /* ---- narrow ------------------------------------------------------------- */
 
 @media (max-width: 860px) {
   .brand { display: none; }
+  .topbar input[type="search"] { width: 130px; }
   .body { grid-template-columns: 1fr; grid-template-rows: 180px 1fr; }
   .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
   .model-list { flex-direction: row; overflow-x: auto; }
   .card { width: 220px; flex: 0 0 auto; }
+
+  #app[data-view="gallery"] .body { grid-template-rows: 1fr; }
+  #app[data-view="gallery"] .model-list { flex-direction: column; overflow-x: hidden; }
+  #app[data-view="gallery"] .card { width: auto; }
 }

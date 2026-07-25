@@ -81,24 +81,27 @@ export function filterModels(models, query) {
   return models.filter((m) => m.name.toLowerCase().includes(needle))
 }
 
+// One card list, two layouts. The gallery is the same `#model-list` widened
+// into a grid rather than a second copy of every card: two lists would mean two
+// selection states to keep in step, and the one that is off screen is always
+// the one that goes stale.
 const LAYOUT = `
 <header class="topbar">
   <span class="brand">text-to-3D<span class="dim"> preview</span></span>
-  <output id="status" role="status">Loading…</output>
+  <div class="views" role="group" aria-label="Layout">
+    <button id="view-gallery" type="button" aria-pressed="false">Gallery</button>
+    <button id="view-single" type="button" aria-pressed="true">Single</button>
+  </div>
+  <input id="filter" type="search" placeholder="Filter by name" aria-label="Filter models">
+  <span class="count" id="model-count"></span>
+  <button id="refresh" type="button">Refresh</button>
   <span class="spacer"></span>
-  <label class="toggle"><input id="autorotate" type="checkbox" checked> Auto rotate</label>
-  <input id="speed" type="range" min="0" max="6" step="0.5" value="1.5" aria-label="Rotation speed">
-  <label class="toggle"><input id="wireframe" type="checkbox"> Wireframe</label>
-  <button id="reset-view" type="button">Reset view</button>
+  <output id="status" role="status">Loading…</output>
 </header>
 
 <div class="body">
   <aside class="sidebar">
-    <div class="sidebar-head">
-      <h2>Models <span class="count" id="model-count"></span></h2>
-      <button id="refresh" type="button">Refresh</button>
-    </div>
-    <input id="filter" type="search" placeholder="Filter by name" aria-label="Filter models">
+    <div class="sidebar-head"><h2>Models</h2></div>
     <div class="model-list" id="model-list" role="listbox" aria-label="Models"></div>
     <p class="sidebar-note" id="sidebar-note" hidden></p>
 
@@ -119,6 +122,14 @@ const LAYOUT = `
 
     <div class="panel" id="panel-model" role="tabpanel" aria-label="Model">
       <div class="stage" id="stage"></div>
+      <div class="stage-controls">
+        <label class="toggle"><input id="autorotate" type="checkbox" checked> Auto rotate</label>
+        <input id="speed" type="range" min="0" max="6" step="0.5" value="1.5" aria-label="Rotation speed">
+        <label class="toggle"><input id="wireframe" type="checkbox"> Wireframe</label>
+        <label class="toggle"><input id="grid" type="checkbox"> Grid</label>
+        <label class="toggle"><input id="quality" type="checkbox" checked> Quality</label>
+        <button id="reset-view" type="button">Reset view</button>
+      </div>
     </div>
 
     <div class="panel image-panel" id="panel-image" role="tabpanel" aria-label="Source image" hidden>
@@ -144,12 +155,18 @@ export function mountUi(root, options = {}) {
     onSelect = () => {},
     onRotationChange = () => {},
     onWireframeChange = () => {},
+    onGridChange = () => {},
+    onQualityChange = () => {},
     onResetView = () => {},
     onLayoutChange = () => {},
     onClipChange = () => {},
     onPlayingChange = () => {},
+    // Given a model, resolves to a data URL of that GLB rendered, or null. Left
+    // out when there is no renderer to ask, which is what the DOM tests do.
+    onThumbnail = null,
     fetchImpl = globalThis.fetch,
     search = '',
+    view = 'single',
     history = globalThis.history,
   } = options
 
@@ -159,6 +176,10 @@ export function mountUi(root, options = {}) {
     autorotate: root.querySelector('#autorotate'),
     speed: root.querySelector('#speed'),
     wireframe: root.querySelector('#wireframe'),
+    grid: root.querySelector('#grid'),
+    quality: root.querySelector('#quality'),
+    viewGallery: root.querySelector('#view-gallery'),
+    viewSingle: root.querySelector('#view-single'),
     reset: root.querySelector('#reset-view'),
     refresh: root.querySelector('#refresh'),
     filter: root.querySelector('#filter'),
@@ -182,8 +203,10 @@ export function mountUi(root, options = {}) {
   let models = []
   let selected = null
   let mode = 'model'
+  let layout = view
   let clip = null
   let playing = true
+  root.dataset.view = layout
 
   function setStatus(text, kind = 'info') {
     el.status.textContent = text
@@ -293,6 +316,52 @@ export function mountUi(root, options = {}) {
     if (showingModel) onLayoutChange()
   }
 
+  /**
+   * Fill a card's picture. The GLB rendered by the page is the honest one: the
+   * source PNG is what FLUX drew, and a grid of those flatters a reconstruction
+   * that may have lost half of it. The source is the fallback, not the default,
+   * and it is all there is when no renderer was handed in.
+   */
+  function fillThumb(model, thumb, img) {
+    const fallback = () => {
+      thumb.classList.remove('thumb-pending')
+      if (model.source) img.src = model.source.uri
+      else thumb.classList.add('thumb-empty')
+    }
+
+    if (!onThumbnail || model.readable === false) {
+      fallback()
+      return
+    }
+
+    thumb.classList.add('thumb-pending')
+    const run = () => Promise.resolve()
+      .then(() => onThumbnail(model))
+      .then((url) => {
+        if (!url) return fallback()
+        img.src = url
+        thumb.classList.remove('thumb-pending')
+        thumb.classList.add('thumb-render')
+      })
+      .catch(fallback)
+
+    // Rendering every model in a folder of fifty costs fifty GLB downloads and
+    // fifty frames, most of them for cards nobody scrolled to. Where the
+    // browser can say what is on screen, only those get drawn.
+    if (typeof IntersectionObserver !== 'function') {
+      run()
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        observer.disconnect()
+        run()
+      }
+    }, { rootMargin: '300px' })
+    observer.observe(thumb)
+  }
+
   function card(model) {
     const button = document.createElement('button')
     button.type = 'button'
@@ -303,19 +372,14 @@ export function mountUi(root, options = {}) {
 
     const thumb = document.createElement('span')
     thumb.className = 'thumb'
-    if (model.source) {
-      const img = document.createElement('img')
-      img.src = model.source.uri
-      img.alt = ''
-      // A directory of a dozen 1024x1024 sources is 20 MB of PNG; off-screen
-      // cards never fetch theirs, and the server answers a revisit with a 304.
-      img.setAttribute('loading', 'lazy')
-      img.setAttribute('decoding', 'async')
-      thumb.append(img)
-    } else {
-      thumb.classList.add('thumb-empty')
-      thumb.textContent = 'GLB'
-    }
+    const img = document.createElement('img')
+    img.alt = ''
+    // A directory of a dozen 1024x1024 sources is 20 MB of PNG; off-screen
+    // cards never fetch theirs, and the server answers a revisit with a 304.
+    img.setAttribute('loading', 'lazy')
+    img.setAttribute('decoding', 'async')
+    thumb.append(img)
+    fillThumb(model, thumb, img)
 
     const meta = document.createElement('span')
     meta.className = 'meta'
@@ -332,12 +396,28 @@ export function mountUi(root, options = {}) {
     meta.append(name, sub)
 
     button.append(thumb, meta)
-    button.addEventListener('click', () => select(button.dataset.key))
+    button.addEventListener('click', () => {
+      select(button.dataset.key)
+      // A click in the gallery means "show me this one", so it opens the
+      // turntable. The Gallery button goes back.
+      if (layout === 'gallery') setView('single')
+    })
     button.addEventListener('keydown', (event) => {
       if (event.key === 'ArrowDown') { event.preventDefault(); moveSelection(1) }
       else if (event.key === 'ArrowUp') { event.preventDefault(); moveSelection(-1) }
     })
     return button
+  }
+
+  function setView(next) {
+    if (next === layout) return
+    layout = next
+    root.dataset.view = layout
+    el.viewGallery.setAttribute('aria-pressed', String(layout === 'gallery'))
+    el.viewSingle.setAttribute('aria-pressed', String(layout === 'single'))
+    // Same reason the tabs call this: the canvas was display:none and comes
+    // back at a size the renderer has not been told about.
+    onLayoutChange()
   }
 
   function renderList() {
@@ -458,6 +538,10 @@ export function mountUi(root, options = {}) {
   el.speed.addEventListener('input', () =>
     onRotationChange({ enabled: el.autorotate.checked, speed: Number(el.speed.value) }))
   el.wireframe.addEventListener('change', () => onWireframeChange(el.wireframe.checked))
+  el.grid.addEventListener('change', () => onGridChange(el.grid.checked))
+  el.quality.addEventListener('change', () => onQualityChange(el.quality.checked))
+  el.viewGallery.addEventListener('click', () => setView('gallery'))
+  el.viewSingle.addEventListener('click', () => setView('single'))
   el.reset.addEventListener('click', () => onResetView())
   el.tabModel.addEventListener('click', () => setMode('model'))
   el.tabImage.addEventListener('click', () => setMode('image'))
@@ -467,9 +551,13 @@ export function mountUi(root, options = {}) {
     elements: el,
     refresh,
     select,
+    setView,
     setStatus,
     setStats,
     showClips,
+    get view() {
+      return layout
+    },
     get clip() {
       return clip
     },
@@ -487,6 +575,9 @@ export function mountUi(root, options = {}) {
     },
     get rotation() {
       return { enabled: el.autorotate.checked, speed: Number(el.speed.value) }
+    },
+    get quality() {
+      return el.quality.checked
     },
   }
 }
