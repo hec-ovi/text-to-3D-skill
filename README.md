@@ -123,15 +123,21 @@ That second command gives a humanoid 19 Mixamo-named bones fitted to the mesh by
 
 Rig after decimation, never before: simplifying a skinned mesh throws the weights away. Why the skeleton is measured rather than predicted by a neural rigger, and why the clips are authored rather than downloaded, is in [`layers/rig/README.md`](layers/rig/README.md).
 
+The result carries `poseWarnings`, because the pose the mesh was reconstructed in is permanent: it becomes the rest pose and every clip plays on top of it, so a figure caught mid-stride limps in all four. Run over the characters already in `out/`, the check found one with its feet 36% of its height apart front to back, two with an arm that never separates from the torso, and bent limbs on most of them. It is a warning rather than an error, because the rig cannot fix a pose and a file plus a note beats a refusal. What the image stage asks for to avoid them is in [`layers/text2image/src/klein.py`](layers/text2image/src/klein.py); a prompt framed as a character also gets four times the atlas texels, since a head is an eighth of a figure and the atlas hands them out by surface area.
+
 ## Look at it
 
 ```bash
 python3 layers/preview/src/serve.py --dir out --open
 ```
 
-`http://127.0.0.1:8190` lists every GLB in the folder down the left, newest first, each card carrying the image it was reconstructed from, its triangle count, its size and its age. Filter by name, walk the list with the arrow keys, and switch between the turntable and the full-size source image with the two tabs. Drag to orbit, scroll to zoom, toggle the spin and its speed, flip to wireframe. three.js is vendored into the repo, so the page works with no network and no build step.
+`http://127.0.0.1:8190` has two layouts over one list. **Gallery** is a grid, every GLB in the folder rendered in the browser at 512px. **Single** puts the list down the left and the selected model on a turntable, with the picture it was reconstructed from behind a second tab. Filter by name, walk the list with the arrow keys, drag to orbit, scroll to zoom, flip to wireframe.
 
-Every model gets a stable id, so `?id=<id>` deep links one asset and `GET /api/models?id=<id>` resolves it from a script. `?model=<file name>` still works.
+Both layouts render through the same studio: a sky dome and three soft boxes baked to an environment map, a three-point rig with a key 45 degrees off the camera so shadows fall where they can be seen, screen-space ambient occlusion, a narrow bloom and Khronos PBR Neutral tone mapping. The occlusion is the part that matters for these assets: TRELLIS bakes none into the atlas, so without it every crevice, eye socket and panel gap is lit exactly as brightly as the surface beside it and the form goes flat. Quality off drops the occlusion and the bloom, for when the same iGPU is busy generating.
+
+Card art is the GLB, not the PNG it came from. Using the source image would have been easy and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have lost half of it.
+
+three.js is vendored, so the page works with no network and no build step. Every model gets a stable id, so `?id=<id>` deep links one asset and `GET /api/models?id=<id>` resolves it from a script. `?model=<file name>` still works.
 
 ## Performance
 
@@ -176,7 +182,8 @@ The preview layer's share is 30 HTTP tests against a real server, plus 27 DOM te
 ## Limits
 
 - One object per prompt. TRELLIS.2 reconstructs a single subject; ask for two things and you get one confused thing.
-- Faces do not survive close inspection. The same character at 296590 triangles and at 8000 has the same melted face, so this is the reconstruction's ceiling rather than the decimation's: the head is an eighth of the figure and gets the texels its surface area earns. Helmets, hoods and stylised characters are the way around it.
+- Faces do not survive close inspection. The same character at 296590 triangles and at 8000 has the same melted face, so this is the reconstruction's ceiling rather than the decimation's: the head is an eighth of the figure and gets the texels its surface area earns. A character now gets four times the atlas by default, which buys back some of it; helmets, hoods and stylised characters are still the way around the rest.
+- Nothing checks that the mesh matches the prompt. The pose is checked, the file is validated, the triangles are measured. Whether it is the thing you asked for is still your eyes on the gallery.
 - Rigging covers one upright humanoid or one prop. No quadrupeds, no vehicles, no faces or fingers, and no editing an existing mesh.
 - No CPU path. `--require-gpu` is always passed, so a missing Vulkan device is an error rather than a twenty-minute fallback.
 - Tested on one machine, the gfx1151 box described in [`layers/image2mesh/bench/README.md`](layers/image2mesh/bench/README.md).

@@ -139,7 +139,7 @@ curl -s "http://127.0.0.1:8190/api/models?id=abc123-r512"    # resolve one asset
 # then: http://127.0.0.1:8190/?id=abc123-r512
 ```
 
-The page lists every GLB in the folder newest first with its source image, triangle count and age; the selected one spins on a turntable; the Image tab shows the picture it was reconstructed from at full size; a rigged asset gets a Motion panel that plays its clips. `--open` opens a browser directly.
+Two layouts, toggled in the top bar. Gallery is a grid of every GLB in the folder, each rendered in the browser; Single is the list plus a turntable, with the source image behind the Image tab and, for a rigged asset, a Motion panel that plays its clips. `--open` opens a browser directly.
 
 <a id="mcp"></a>
 ## MCP
