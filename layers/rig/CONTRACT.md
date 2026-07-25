@@ -1,6 +1,6 @@
 # CONTRACT - rig
 
-`contractVersion: 1.1`
+`contractVersion: 1.2`
 
 ## Purpose
 
@@ -51,9 +51,15 @@ Closed set, [`schema/error.json`](schema/error.json). Written to stderr as JSON,
 | `OUTPUT_WRITE_FAILED` | `outDir` is not writable. |
 | `GLB_INVALID` | Blender wrote a file no glTF loader would open. |
 
+Blender is reached either as a host binary or as a container, decided by `runner`. `auto`, the default, prefers a binary and falls back to the image, because a fresh clone already has Docker for the mesh engine and no Blender at all. An explicit `runner` or `blenderPath` is honoured rather than silently substituted: a run that quietly used a different Blender version would not be reproducible. `engine.runner` in the result says which one actually ran.
+
 ## Dependencies
 
-Blender 5.x, called as `blender --background --python src/blender_rig.py`. Nothing else, and no other layer. The input is a GLB; this layer neither knows nor cares that `image2mesh` produced it.
+Blender 5.x, called as `blender --background --python src/blender_rig.py`, reached either as a host binary or as the container image `text-to-3d/blender:5.2` built from [`docker/Dockerfile`](docker/Dockerfile). Nothing else, and no other layer. The input is a GLB; this layer neither knows nor cares that `image2mesh` produced it.
+
+Which of the two is used is decided by the `runner` input. `auto`, the default, prefers a host binary because a subprocess starts faster than a container, and falls back to the image rather than failing: a fresh clone already has Docker for the mesh engine and no Blender at all. An explicit `runner` or `blenderPath` is honoured rather than silently substituted, since a run that quietly used a different Blender would not be reproducible. `engine.runner` in the result says which one actually ran.
+
+The container gets `--network none` and is run as the calling uid, so the GLB it writes back is owned by the caller rather than by root. The input GLB is copied into the mounted work directory rather than bind-mounted in place: it can live anywhere on the host, and mounting an arbitrary parent directory into a container to reach one file is a far larger hole than a copy.
 
 ## Invariants
 

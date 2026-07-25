@@ -17,7 +17,7 @@
   "properties": {
     "contractVersion": {
       "type": "string",
-      "const": "1.1"
+      "const": "1.2"
     },
     "glb": {
       "type": "object",
@@ -167,6 +167,14 @@
             "none"
           ],
           "description": "How skinning weights were derived. none for a prop, which gets no armature at all."
+        },
+        "runner": {
+          "type": "string",
+          "enum": [
+            "binary",
+            "docker"
+          ],
+          "description": "How Blender was reached for this run."
         }
       }
     },

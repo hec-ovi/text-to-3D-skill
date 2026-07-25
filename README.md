@@ -183,6 +183,7 @@ The preview layer's share is 33 HTTP tests against a real server, plus 39 DOM te
 
 - One object per prompt. TRELLIS.2 reconstructs a single subject; ask for two things and you get one confused thing.
 - Faces do not survive close inspection. The same character at 296590 triangles and at 8000 has the same melted face, so this is the reconstruction's ceiling rather than the decimation's: the head is an eighth of the figure and gets the texels its surface area earns. A character now gets four times the atlas by default, which buys back some of it; helmets, hoods and stylised characters are still the way around the rest.
+- Glossy subjects come back matte, and it is the texture rather than the renderer. TRELLIS bakes a metallicRoughness map that measures, on the red sports car above, a mean roughness of 0.72 and metalness of 0.33 over a 2048 atlas. Car paint is roughness 0.15 to 0.3 with a clearcoat over it, so the file itself says matte and the viewer is showing you the file. Anything that reads as polished in the reference image will not read as polished in the GLB.
 - Nothing checks that the mesh matches the prompt. The pose is checked, the file is validated, the triangles are measured. Whether it is the thing you asked for is still your eyes on the gallery.
 - Rigging covers one upright humanoid or one prop. No quadrupeds, no vehicles, no faces or fingers, and no editing an existing mesh.
 - No CPU path. `--require-gpu` is always passed, so a missing Vulkan device is an error rather than a twenty-minute fallback.

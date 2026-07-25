@@ -33,6 +33,17 @@ The phase relationship worth knowing: a negative X rotation swings a limb forwar
 | `fixtures/humanoid-rigged-idle.glb` | what a rigged file looks like, for the stand-in Blender |
 | `tests/test_rig.py` | the CLI against a stand-in, plus the real Blender when it is installed |
 
+## Blender without installing Blender
+
+```bash
+docker build -f docker/Dockerfile -t text-to-3d/blender:5.2 .
+python3 src/rig.py --glb ../../out/hero-r1024.glb --subject humanoid --runner docker
+```
+
+Blender was the last thing in this repo that had to be on the host by hand: 400 MB of binary that cannot be a Python import and will not fit in a standard library. It is an image now, the same as the mesh engine, and `--runner auto` (the default) uses a host binary if there is one and the container if there is not. Measured on a generated character: 29.4 s end to end through the container, 19 joints, four clips.
+
+No GPU in that image and no `/dev/dri`. Bone heat is a CPU solver and so is the export, which is the whole reason this one can be a plain Ubuntu base with Blender untarred into it.
+
 ## The pose is the whole game
 
 Whatever pose the mesh arrives in becomes the rest pose. Bone heat binds it, every clip plays on top of it, and there is no undoing it downstream: a figure reconstructed mid-stride walks with a limp in all four clips. That is why `text2image` spends a paragraph asking for an A-pose, and why `pose_report` in `src/fit.py` checks whether it got one.

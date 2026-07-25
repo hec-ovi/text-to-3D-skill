@@ -104,6 +104,10 @@ python3 layers/rig/src/rig.py --glb out/hero-r512.glb --subject humanoid --out-d
 python3 layers/rig/src/rig.py --glb out/barrel-r512.glb --subject prop --socket socket_top
 ```
 
+Blender is not required on the host. `--runner auto` (the default) uses a host binary if there is one and otherwise the container, built once with `cd layers/rig && docker build -f docker/Dockerfile -t text-to-3d/blender:5.2 .`. Through the container a character takes about 30 seconds. No GPU: bone heat is a CPU solver.
+
+The result carries `poseWarnings`, and they are worth reading rather than ignoring. The pose the mesh arrived in becomes the rest pose, so a figure caught mid-stride limps in every clip. Codes: `ARMS_AGAINST_TORSO`, `LIMB_NOT_MEASURED`, `SHOULDERS_NOT_FOUND`, `LEGS_NOT_SEPARATED`, `FEET_APART_IN_DEPTH`, `LIMBS_ASYMMETRIC`, `FOOT_OFF_THE_GROUND`, `LIMB_BENT`. Several of them mean the fix is to regenerate the image, not to re-rig.
+
 - **humanoid**: 19 Mixamo-named bones fitted by measuring the mesh, following each limb band by band wherever the pose put it, then bone-heat skinning and `idle`, `walk`, `run`, `jump` in the file. A second or two on a decimated mesh. A mesh that arrived in a pose is neutralised first, so a walk cycle starts from standing rather than stacking on top of a stride.
 - **prop**: no armature at all. `spin` and `bob` on the node itself, plus a named empty as an attachment point, which is what an engine wants from a barrel.
 

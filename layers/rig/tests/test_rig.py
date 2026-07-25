@@ -416,3 +416,72 @@ def test_an_unknown_finding_code_is_rejected_by_the_schema(tmp_path):
                    "--out-dir", str(tmp_path), "--blender-path", blender)
     assert proc.returncode != 0
     assert "LOOKS_A_BIT_ODD" in proc.stderr or "poseWarnings" in proc.stderr
+
+
+# ---- reaching Blender --------------------------------------------------------
+#
+# Blender is 400 MB of binary that cannot be a Python import, and it was the one
+# thing in this repo that had to be installed on the host by hand. It runs in a
+# container now, which is what the rest of the stack already did.
+
+
+def test_an_explicit_path_forces_the_binary_runner(tmp_path):
+    """Naming a Blender is an instruction, not a hint. It must never be quietly
+    swapped for a container that holds a different version."""
+    fake = tmp_path / "blender"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    assert rig_module.resolve_runner("auto", str(fake), "img") == ("binary", str(fake))
+
+
+def test_an_explicit_path_that_is_wrong_is_reported_not_papered_over():
+    with pytest.raises(rig_module.RigError) as caught:
+        rig_module.resolve_runner("binary", "/nowhere/blender", "img")
+    assert caught.value.code == "BLENDER_MISSING"
+    assert "/nowhere/blender" in caught.value.message
+
+
+def test_auto_falls_back_to_the_container_when_the_host_has_no_blender(monkeypatch):
+    """The case that matters. A fresh clone already has Docker for the mesh
+    engine and no Blender at all, and should rig anyway."""
+    monkeypatch.setattr(rig_module, "BLENDER_CANDIDATES", ("",))
+    monkeypatch.setattr(rig_module, "_docker_available", lambda image: True)
+    assert rig_module.resolve_runner("auto", None, "img") == ("docker", "img")
+
+
+def test_auto_prefers_a_host_binary_over_the_container(tmp_path, monkeypatch):
+    """A subprocess starts faster than a container and needs no image built."""
+    fake = tmp_path / "blender"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setattr(rig_module, "BLENDER_CANDIDATES", (str(fake),))
+    monkeypatch.setattr(rig_module, "_docker_available", lambda image: True)
+    assert rig_module.resolve_runner("auto", None, "img") == ("binary", str(fake))
+
+
+def test_with_neither_the_error_says_how_to_build_the_image(monkeypatch):
+    monkeypatch.setattr(rig_module, "BLENDER_CANDIDATES", ("",))
+    monkeypatch.setattr(rig_module, "_docker_available", lambda image: False)
+    with pytest.raises(rig_module.RigError) as caught:
+        rig_module.resolve_runner("auto", None, "text-to-3d/blender:5.2")
+    assert caught.value.code == "BLENDER_MISSING"
+    assert "docker build" in caught.value.detail
+
+
+def test_asking_for_docker_without_the_image_does_not_fall_back(monkeypatch):
+    """An explicit runner is a decision. Silently running a host Blender that
+    may be a different version would make the result unreproducible."""
+    monkeypatch.setattr(rig_module, "_executable", lambda c: "/usr/bin/docker" if c == "docker" else None)
+    monkeypatch.setattr(rig_module, "_docker_available", lambda image: False)
+    with pytest.raises(rig_module.RigError) as caught:
+        rig_module.resolve_runner("docker", None, "text-to-3d/blender:5.2")
+    assert "not built" in caught.value.message
+
+
+def test_the_result_records_which_runner_actually_ran(tmp_path):
+    blender, _ = fake_blender(tmp_path)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+    assert result["engine"]["runner"] == "binary"

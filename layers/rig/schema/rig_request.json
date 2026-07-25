@@ -14,7 +14,8 @@
       "type": "string",
       "enum": [
         "1.0",
-        "1.1"
+        "1.1",
+        "1.2"
       ]
     },
     "glb": {
@@ -93,6 +94,20 @@
       "minimum": 30,
       "maximum": 3600,
       "default": 900
+    },
+    "runner": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "binary",
+        "docker"
+      ],
+      "default": "auto",
+      "description": "How Blender is reached. auto prefers a local binary and falls back to the container. binary requires one on the host. docker requires the text-to-3d/blender image. Passing blenderPath implies binary."
+    },
+    "dockerImage": {
+      "type": "string",
+      "description": "Override the Blender image tag used by the docker runner."
     }
   }
 }

@@ -33,7 +33,7 @@ REQ_SCHEMA = os.path.join(LAYER, "schema", "rig_request.json")
 RES_SCHEMA = os.path.join(LAYER, "schema", "rig_result.json")
 BLENDER_SCRIPT = os.path.join(HERE, "blender_rig.py")
 
-CONTRACT_VERSION = "1.1"
+CONTRACT_VERSION = "1.2"
 
 GLB_MAGIC = 0x46546C67
 CHUNK_JSON = 0x4E4F534A
@@ -45,6 +45,11 @@ BLENDER_CANDIDATES = (
     "/home/hec/opt/blender-5.2.0-linux-x64/blender",
     "blender",
 )
+
+# Blender in a container, so the host needs Docker and nothing else. Built by
+# docker/Dockerfile, and tagged by Blender's own version rather than by this
+# layer because layers/assets runs its glTF conversion in the same image.
+DOCKER_IMAGE = "text-to-3d/blender:5.2"
 
 
 class RigError(Exception):
@@ -77,7 +82,45 @@ def find_blender(explicit=None):
         if found:
             return found
     raise RigError("BLENDER_MISSING", "no Blender executable found",
-                   "install Blender 5.x, or pass blenderPath, or set BLENDER")
+                   "run with --runner docker, or install Blender 5.x, "
+                   "or pass blenderPath, or set BLENDER")
+
+
+def _docker_available(image):
+    """True when Docker answers and the Blender image is already built."""
+    if not _executable("docker"):
+        return False
+    probe = subprocess.run(["docker", "image", "inspect", image],
+                           capture_output=True, text=True)
+    return probe.returncode == 0
+
+
+def resolve_runner(requested, explicit_path, image):
+    """How Blender will be reached: ("binary", path) or ("docker", image).
+
+    `auto` prefers a local binary, because a subprocess starts faster than a
+    container and needs no image built, then falls back to the container rather
+    than failing. That fallback is the case that matters: a fresh clone already
+    has Docker for the mesh engine and no Blender at all.
+    """
+    if requested == "binary" or explicit_path:
+        return "binary", find_blender(explicit_path)
+    if requested == "docker":
+        if not _executable("docker"):
+            raise RigError("BLENDER_MISSING", "runner is docker but there is no docker on PATH")
+        if not _docker_available(image):
+            raise RigError("BLENDER_MISSING", f"the image {image} is not built",
+                           f"cd layers/rig && docker build -f docker/Dockerfile -t {image} .")
+        return "docker", image
+    for candidate in BLENDER_CANDIDATES:
+        found = _executable(candidate) if candidate else None
+        if found:
+            return "binary", found
+    if _docker_available(image):
+        return "docker", image
+    raise RigError("BLENDER_MISSING",
+                   "no Blender on this machine and no Blender image built",
+                   f"cd layers/rig && docker build -f docker/Dockerfile -t {image} .")
 
 
 # ---- GLB inspection ---------------------------------------------------------
@@ -191,7 +234,9 @@ def rig(request):
                        f"available: {sorted(VALID_CLIPS[subject])}")
 
     glb_path = _check_glb(req["glb"])
-    blender = find_blender(req.get("blenderPath"))
+    runner, blender = resolve_runner(req.get("runner", "auto"),
+                                     req.get("blenderPath"),
+                                     req.get("dockerImage") or DOCKER_IMAGE)
 
     out_dir = req.get("outDir") or os.path.dirname(glb_path)
     try:
@@ -205,20 +250,56 @@ def rig(request):
     with tempfile.TemporaryDirectory(prefix="t2m-rig-") as work:
         job_path = os.path.join(work, "job.json")
         report_path = os.path.join(work, "report.json")
-        job = {
-            "glb": glb_path,
-            "out": out_path,
-            "outJson": report_path,
-            "subject": subject,
-            "animations": clips,
-            "socket": req.get("socket"),
-            "nodeName": stem,
-        }
+
+        if runner == "docker":
+            # Everything the run touches is staged into one directory mounted at
+            # /work, so the job file can name container paths and nothing has to
+            # translate a host path inside the container. The input is copied
+            # rather than bind-mounted because it can live anywhere on the host,
+            # and mounting arbitrary parent directories into a container to
+            # reach one file is a much larger hole than a copy.
+            staged_glb = os.path.join(work, "input.glb")
+            shutil.copyfile(glb_path, staged_glb)
+            job = {
+                "glb": "/work/input.glb",
+                "out": "/work/output.glb",
+                "outJson": "/work/report.json",
+                "subject": subject,
+                "animations": clips,
+                "socket": req.get("socket"),
+                "nodeName": stem,
+            }
+        else:
+            job = {
+                "glb": glb_path,
+                "out": out_path,
+                "outJson": report_path,
+                "subject": subject,
+                "animations": clips,
+                "socket": req.get("socket"),
+                "nodeName": stem,
+            }
         with open(job_path, "w", encoding="utf-8") as fh:
             json.dump(job, fh)
 
-        cmd = [blender, "--background", "--factory-startup",
-               "--python-exit-code", "1", "--python", BLENDER_SCRIPT, "--", job_path]
+        if runner == "docker":
+            cmd = [
+                "docker", "run", "--rm",
+                # As the caller, so the GLB that comes back is theirs and not
+                # root's. Blender then needs a writable HOME, which the image
+                # already points at /tmp.
+                "--user", f"{os.getuid()}:{os.getgid()}",
+                "--network", "none",
+                "-v", f"{work}:/work",
+                "-v", f"{HERE}:/scripts:ro",
+                blender,
+                "--background", "--factory-startup", "--python-exit-code", "1",
+                "--python", "/scripts/blender_rig.py", "--", "/work/job.json",
+            ]
+        else:
+            cmd = [blender, "--background", "--factory-startup",
+                   "--python-exit-code", "1", "--python", BLENDER_SCRIPT, "--", job_path]
+
         started = time.monotonic()
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True,
@@ -226,6 +307,13 @@ def rig(request):
         except subprocess.TimeoutExpired:
             raise RigError("TIMEOUT", f"Blender did not finish within {req['timeoutSeconds']}s")
         elapsed_ms = int((time.monotonic() - started) * 1000)
+
+        # The container wrote into the staging directory; lift the result out to
+        # where the caller asked for it.
+        if runner == "docker":
+            produced = os.path.join(work, "output.glb")
+            if os.path.isfile(produced):
+                shutil.copyfile(produced, out_path)
 
         report = None
         if os.path.isfile(report_path):
@@ -272,6 +360,7 @@ def rig(request):
         "animations": inner.get("animations", []),
         "geometry": {"vertices": inner.get("vertices", 0), "faces": inner.get("faces", 0)},
         "engine": {"blender": inner.get("blender", ""),
+                   "runner": runner,
                    "binding": "bone-heat" if subject == "humanoid" else "none"},
         "elapsedMs": elapsed_ms,
     }
@@ -306,6 +395,10 @@ def main(argv=None):
     parser.add_argument("--socket", help="prop only: name an attachment empty")
     parser.add_argument("--out-dir")
     parser.add_argument("--blender-path")
+    parser.add_argument("--runner", choices=["auto", "binary", "docker"], default="auto",
+                        help="how to reach Blender. auto prefers a host binary and falls "
+                             "back to the container")
+    parser.add_argument("--docker-image", help=f"override the Blender image (default {DOCKER_IMAGE})")
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--glb-path-only", action="store_true")
     args = parser.parse_args(argv)
@@ -334,6 +427,10 @@ def main(argv=None):
             request["outDir"] = args.out_dir
         if args.blender_path:
             request["blenderPath"] = args.blender_path
+        if args.runner != "auto":
+            request["runner"] = args.runner
+        if args.docker_image:
+            request["dockerImage"] = args.docker_image
         if args.socket:
             request["socket"] = args.socket
     else:
