@@ -52,7 +52,7 @@ No dependency on any other layer in this repo.
 - Same `prompt` and no explicit `seed` produces the same seed, hence the same image, for a fixed model set. The seed is `sha256(framed prompt)`, top 63 bits.
 - The layer never mutates `templates/flux2_klein_t2i.json`; the graph is deep-copied per call.
 - `promptSent` in the result is exactly what reached the sampler, framing included.
-- Output filenames are content-addressed (`<sha256[:16]>.png`), so two identical renders collapse onto one file.
+- Output filenames are `<slug>-<sha256[:8]>.png`, where the slug is the subject with articles and punctuation stripped. Still content-addressed on the same subject, so two identical renders collapse onto one file, and the digest makes a collision between two subjects impossible. The digest alone deduplicated perfectly and told a person nothing, which is a poor trade for the one name a human ever reads.
 
 ## How to modify this blackbox safely
 

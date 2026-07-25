@@ -183,6 +183,35 @@ class RenderError(Exception):
         return env
 
 
+# Leading noise words. "a-viking-warrior-3f2a9c" reads worse than
+# "viking-warrior-3f2a9c" and carries the same information.
+_ARTICLES = ("a", "an", "the", "some", "one")
+
+
+def slug_for(subject, limit=44):
+    """A filename-safe, human-readable stem from the subject.
+
+    Output used to be the image's sha256 alone, which deduplicates perfectly
+    and tells a person nothing: a gallery of cd3cfe84c0486665-r1024.glb is a
+    gallery of nothing. The digest still rides along, shortened, so two renders
+    of the same subject still collapse onto one file and two subjects can never
+    collide.
+    """
+    words = re.findall(r"[a-z0-9]+", subject.lower())
+    while words and words[0] in _ARTICLES:
+        words.pop(0)
+    if not words:
+        return "asset"
+    stem = ""
+    for word in words:
+        candidate = f"{stem}-{word}" if stem else word
+        # Cut at a word boundary. A stem sliced mid-word reads like a typo.
+        if len(candidate) > limit:
+            break
+        stem = candidate
+    return stem or words[0][:limit]
+
+
 def seed_for(text):
     """Deterministic 63-bit seed so the same prompt reproduces the same image."""
     return int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], 16) >> 1
@@ -275,7 +304,7 @@ def render(request, template_path=None):
 
     try:
         os.makedirs(out_dir, exist_ok=True)
-        path = os.path.join(out_dir, f"{digest[:16]}.png")
+        path = os.path.join(out_dir, f"{slug_for(req['prompt'])}-{digest[:8]}.png")
         with open(path, "wb") as fh:
             fh.write(png)
     except OSError as exc:

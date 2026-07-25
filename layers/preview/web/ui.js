@@ -63,6 +63,44 @@ export function keyOf(model) {
   return model ? (model.id || model.name) : null
 }
 
+// What a file name says about the asset besides its subject. Order matters:
+// these are shown as written, so `r1024` before `r512` is only cosmetic but
+// `lowpoly` before `poly` would not be.
+const VARIANT = /^(r\d+|rigged|lowpoly\w*|polyhaven|base)$/
+// A content-addressed segment. Eight hex characters or more is a digest, not a
+// word: the shortest English word that is also hex is four letters.
+const DIGEST = /^[0-9a-f]{8,}$/
+
+function parts(name) {
+  return name.replace(/\.(glb|gltf|png|jpe?g|webp)$/i, '').split(/[-_]/).filter(Boolean)
+}
+
+/**
+ * The name to put on a card.
+ *
+ * Files are named `<subject>-<digest>-r512.glb`, and only the subject is worth
+ * reading. Before the subject was in there at all this returned things like
+ * "Cd3cfe84c0486665", which is why it exists.
+ */
+export function titleOf(name) {
+  if (!name) return ''
+  const words = parts(name).filter((p) => !DIGEST.test(p) && !VARIANT.test(p))
+  // An older asset is all digest and variant. Its file name is all there is.
+  if (!words.length) return parts(name).join(' ')
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+/**
+ * The variant tags in a file name, in the order they appear.
+ *
+ * Without these two files reduce to the same title: a rigged asset and the mesh
+ * it was rigged from are both "Viking Warrior", and a gallery showing that
+ * twice is worse than showing the raw file name.
+ */
+export function tagsOf(name) {
+  return name ? parts(name).filter((p) => VARIANT.test(p)) : []
+}
+
 // The list arrives newest first, so element 0 is the model someone most likely
 // just generated. An explicit id or name wins, but only if it is really there.
 export function pickInitial(models, requested) {
@@ -385,14 +423,17 @@ export function mountUi(root, options = {}) {
     meta.className = 'meta'
     const name = document.createElement('span')
     name.className = 'name'
-    name.textContent = model.name
+    name.textContent = titleOf(model.name)
+    // The card shows the subject; the file name is one hover away and is still
+    // spelled out in full in the status bar under the turntable.
+    button.title = model.name
     const sub = document.createElement('span')
     sub.className = 'sub'
-    const parts = []
-    if (model.readable === false) parts.push('unreadable')
-    else if (typeof model.triangles === 'number') parts.push(`${formatShortCount(model.triangles)} tris`)
-    parts.push(formatBytes(model.byteSize), formatAge(model.modifiedAt))
-    sub.textContent = parts.join(' · ')
+    const line = tagsOf(model.name)
+    if (model.readable === false) line.push('unreadable')
+    else if (typeof model.triangles === 'number') line.push(`${formatShortCount(model.triangles)} tris`)
+    line.push(formatBytes(model.byteSize), formatAge(model.modifiedAt))
+    sub.textContent = line.join(' · ')
     meta.append(name, sub)
 
     button.append(thumb, meta)

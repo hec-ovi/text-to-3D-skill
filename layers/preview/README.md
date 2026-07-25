@@ -8,6 +8,8 @@ python3 src/serve.py --dir ../../out --open
 
 Two layouts over one list of models. **Gallery** is a grid of cards, each showing that GLB actually rendered, at 512px, by the same studio the turntable uses. **Single** puts the list down the left and a turntable in the middle, with the source image behind a second tab, because seeing both is the only way to tell a bad reconstruction from a bad prompt. Cards carry the triangle count, the size and the age either way; filter by name, or walk the list with the arrow keys.
 
+Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with `r512` and `rigged` kept as tags so a rigged asset and the mesh it came from never read the same. The full name is on hover and in the status bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
+
 The card art is the GLB, not the PNG it was reconstructed from. Using the source image was tempting and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have thrown half of it away. The source image is the fallback, for a model whose render fails or a page with no WebGL.
 
 A rigged asset gets a Motion panel under the list with one entry per clip in the file, and a pause button. Picking a clip cross-fades to it over a quarter of a second.

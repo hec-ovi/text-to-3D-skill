@@ -395,3 +395,57 @@ def test_result_schema_rejects_a_short_checksum():
     }
     with pytest.raises(SchemaError):
         validate(bad, schema)
+
+
+# ---- names a person can read ------------------------------------------------
+
+
+def test_the_slug_is_readable_and_drops_the_noise():
+    from klein import slug_for
+    assert slug_for("a nice car") == "nice-car"
+    assert slug_for("A Female Warrior") == "female-warrior"
+    assert slug_for("the brass, antique diving helmet!") == "brass-antique-diving-helmet"
+    assert slug_for("some superbike") == "superbike"
+
+
+def test_a_long_subject_is_cut_at_a_word_boundary():
+    """A stem sliced mid-word reads like a corrupted file."""
+    from klein import slug_for
+    stem = slug_for("a heavily weathered brass antique deep sea diving helmet with rivets")
+    assert len(stem) <= 44
+    assert not stem.endswith("-")
+    # Every piece is a whole word from the subject.
+    assert all(part in "heavily weathered brass antique deep sea diving helmet with rivets".split()
+               for part in stem.split("-"))
+
+
+def test_a_subject_with_nothing_nameable_still_gets_a_name():
+    from klein import slug_for
+    assert slug_for("") == "asset"
+    assert slug_for("!!! ???") == "asset"
+    assert slug_for("the a an") == "asset"
+
+
+def test_the_written_file_is_named_after_the_subject(tmp_path):
+    """The one string a human ever reads. A folder of cd3cfe84c0486665.png is
+    a folder of nothing."""
+    with StubComfy() as comfy:
+        result = json.loads(run_cli("--prompt", "a red sports car",
+                                    "--out-dir", str(tmp_path),
+                                    "--endpoint", comfy.url).stdout)
+    name = os.path.basename(result["image"]["uri"])
+    assert name.startswith("red-sports-car-")
+    assert name.endswith(".png")
+    # The digest still rides along, so two subjects can never collide.
+    assert result["image"]["checksum"]["sha256"].startswith(name[len("red-sports-car-"):-4])
+
+
+def test_the_same_subject_still_collapses_onto_one_file(tmp_path):
+    """Content addressing was the reason for the old name and is kept."""
+    with StubComfy() as comfy:
+        first = json.loads(run_cli("--prompt", "a red sports car", "--out-dir", str(tmp_path),
+                                   "--endpoint", comfy.url).stdout)
+        second = json.loads(run_cli("--prompt", "a red sports car", "--out-dir", str(tmp_path),
+                                    "--endpoint", comfy.url).stdout)
+    assert first["image"]["uri"] == second["image"]["uri"]
+    assert len(list(tmp_path.glob("*.png"))) == 1

@@ -11,7 +11,8 @@ import { screen, waitFor } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 
 import {
-  mountUi, pickInitial, filterModels, formatBytes, formatCount, formatShortCount, formatAge,
+  mountUi, pickInitial, filterModels, titleOf, tagsOf,
+  formatBytes, formatCount, formatShortCount, formatAge,
 } from '../web/ui.js'
 import { model, serveModels, serveError, serveNetworkFailure } from './msw-server.js'
 
@@ -41,7 +42,7 @@ describe('model list', () => {
     const ui = mount()
     await ui.refresh()
 
-    expect(cardNames()).toEqual(['bell-r512.glb', 'helmet-r512.glb'])
+    expect(cardNames()).toEqual(['Bell', 'Helmet'])
     expect(cards()[0].textContent).toContain('141k tris')
     expect(cards()[0].textContent).toContain('4.3 MB')
     expect(screen.getByRole('listbox', { name: /models/i })).toBeTruthy()
@@ -68,7 +69,7 @@ describe('model list', () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect.mock.calls[0][0].name).toBe('bell-r512.glb')
-    expect(selectedCard().querySelector('.name').textContent).toBe('bell-r512.glb')
+    expect(selectedCard().querySelector('.name').textContent).toBe('Bell')
     expect(screen.getByRole('status')).toHaveProperty('textContent', 'Loading bell-r512.glb…')
     expect(document.querySelector('#stats').textContent).toContain('140,654')
     expect(document.querySelector('#current-name').textContent).toBe('bell-r512.glb')
@@ -81,7 +82,7 @@ describe('model list', () => {
     await ui.refresh({ keepSelection: false })
 
     expect(onSelect.mock.calls[0][0].name).toBe('helmet-r512.glb')
-    expect(selectedCard().querySelector('.name').textContent).toBe('helmet-r512.glb')
+    expect(selectedCard().querySelector('.name').textContent).toBe('Helmet')
   })
 
   test('still honours the older ?model= link', async () => {
@@ -117,7 +118,7 @@ describe('filtering', () => {
 
     await user.type(screen.getByRole('searchbox', { name: /filter models/i }), 'helm')
 
-    expect(cardNames()).toEqual(['helmet-r512.glb'])
+    expect(cardNames()).toEqual(['Helmet'])
     expect(document.querySelector('#model-count').textContent).toBe('(1/2)')
     expect(onSelect).not.toHaveBeenCalled()
     expect(ui.selected.name).toBe('bell-r512.glb')
@@ -192,7 +193,7 @@ describe('user interaction', () => {
     await ui.refresh()
     onSelect.mockClear()
 
-    await user.click(screen.getByRole('option', { name: /helmet-r512\.glb/ }))
+    await user.click(screen.getByRole('option', { name: /helmet/i }))
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect.mock.calls[0][0].name).toBe('helmet-r512.glb')
@@ -342,7 +343,7 @@ describe('model and image tabs', () => {
     await user.click(screen.getByRole('tab', { name: 'Image' }))
     expect(ui.mode).toBe('image')
 
-    await user.click(screen.getByRole('option', { name: /helmet-r512\.glb/ }))
+    await user.click(screen.getByRole('option', { name: /helmet/i }))
 
     expect(ui.mode).toBe('model')
     expect(screen.getByRole('tab', { name: 'Image' })).toHaveProperty('disabled', true)
@@ -415,7 +416,7 @@ describe('motion', () => {
     await ui.refresh()
     expect(document.querySelector('#motion').hidden).toBe(false)
 
-    await user.click(screen.getByRole('option', { name: /bell-r512\.glb/ }))
+    await user.click(screen.getByRole('option', { name: /bell/i }))
 
     expect(document.querySelector('#motion').hidden).toBe(true)
     expect(screen.queryAllByRole('radio')).toHaveLength(0)
@@ -485,7 +486,7 @@ describe('gallery', () => {
     expect(onLayoutChange).toHaveBeenCalled()
 
     // One list, two layouts: the cards are the same elements either way.
-    expect(cardNames()).toEqual(['bell-r512.glb', 'helmet-r512.glb'])
+    expect(cardNames()).toEqual(['Bell', 'Helmet'])
   })
 
   test('clicking a card in the gallery opens it on the turntable', async () => {
@@ -496,7 +497,7 @@ describe('gallery', () => {
     await ui.refresh()
     await user.click(screen.getByRole('button', { name: 'Gallery' }))
 
-    await user.click(screen.getByRole('option', { name: /helmet-r512\.glb/ }))
+    await user.click(screen.getByRole('option', { name: /helmet/i }))
 
     expect(ui.view).toBe('single')
     expect(ui.selected.name).toBe('helmet-r512.glb')
@@ -543,6 +544,46 @@ describe('gallery', () => {
 
     expect(onThumbnail).not.toHaveBeenCalled()
     expect(cards()[0].querySelector('.thumb').classList.contains('thumb-empty')).toBe(true)
+  })
+})
+
+describe('names a person can read', () => {
+  test('the card shows the subject, not the digest or the variant', () => {
+    expect(titleOf('red-sports-car-3f2a9c1b-r512.glb')).toBe('Red Sports Car')
+    expect(titleOf('female-warrior-9ab21c04-r1024-rigged.glb')).toBe('Female Warrior')
+    expect(titleOf('painted_wooden_chair_01-polyhaven.glb')).toBe('Painted Wooden Chair 01')
+  })
+
+  test('an asset named before there were names keeps its file name', () => {
+    // All digest and variant. Prettifying that to "" would leave a blank card.
+    expect(titleOf('cd3cfe84c0486665-r1024-rigged.glb')).toBe('cd3cfe84c0486665 r1024 rigged')
+  })
+
+  test('the variants are kept as tags, so two files never read the same', () => {
+    // The rigged asset and the mesh it was rigged from share a subject.
+    expect(tagsOf('female-warrior-9ab21c04-r1024-rigged.glb')).toEqual(['r1024', 'rigged'])
+    expect(tagsOf('female-warrior-9ab21c04-r1024.glb')).toEqual(['r1024'])
+    expect(tagsOf('red-sports-car-3f2a9c1b-lowpoly6k-r512.glb')).toEqual(['lowpoly6k', 'r512'])
+  })
+
+  test('a card carries its file name for hovering and keeps the tags in view', async () => {
+    serveModels([model('female-warrior-9ab21c04-r1024-rigged.glb', { triangles: 7687 })])
+    const ui = mount()
+    await ui.refresh()
+
+    const card = cards()[0]
+    expect(card.querySelector('.name').textContent).toBe('Female Warrior')
+    expect(card.title).toBe('female-warrior-9ab21c04-r1024-rigged.glb')
+    expect(card.querySelector('.sub').textContent).toContain('r1024 · rigged')
+    expect(card.querySelector('.sub').textContent).toContain('7.7k tris')
+  })
+
+  test('the status bar still spells the file name out in full', async () => {
+    serveModels([model('female-warrior-9ab21c04-r1024-rigged.glb')])
+    const ui = mount()
+    await ui.refresh()
+    expect(document.querySelector('#current-name').textContent)
+      .toBe('female-warrior-9ab21c04-r1024-rigged.glb')
   })
 })
 
