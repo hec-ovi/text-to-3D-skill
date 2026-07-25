@@ -1,7 +1,7 @@
 <h1 align="center">text-to-3D-skill</h1>
 
 <p align="center">
-  <strong>Text in, GLB out, fully local on an AMD Strix Halo APU. FLUX.2 klein draws the reference image through ComfyUI, then TRELLIS.2 reconstructs it into a textured mesh on a Vulkan-only engine. No ROCm on the 3D half, no cloud on either.</strong>
+  <strong>Type a sentence, get a game-ready GLB, rigged and animated if you want one, generated entirely on your own AMD APU. No cloud, and no ROCm on the 3D half.</strong>
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 
 ## What this is
 
-A skill that turns a sentence into a `.glb` you can hand straight to three.js.
+You are blocking out a level and you need a barrel, a crate and a market stall now. Instead of trawling asset stores or modelling them yourself, you run three prompts, get three textured GLBs a few minutes later, and drop them into three.js or Godot at whatever polycount your budget allows.
 
 ```
 "a brass antique diving helmet"
