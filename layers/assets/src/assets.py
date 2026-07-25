@@ -172,7 +172,6 @@ def fetch(request):
         raise AssetError("INVALID_REQUEST", str(exc))
     req = with_defaults(request, schema)
 
-    blender = find_blender(req.get("blenderPath"))
     out_dir = os.path.abspath(req["outDir"])
     try:
         os.makedirs(out_dir, exist_ok=True)
@@ -185,6 +184,13 @@ def fetch(request):
     if not isinstance(files, dict) or not files:
         raise AssetError("ASSET_MISSING", f"no asset named {req['id']}")
     resolution, entry = _pick_files(files, req["resolution"])
+
+    # Blender is looked for here, after the asset has been resolved, and not
+    # before. Asking first meant a machine with no Blender answered every
+    # question with BLENDER_MISSING: a typo in an id, an asset with no glTF
+    # variant, all of it masked by an environment problem the caller had not
+    # got to yet. What is wrong with the request comes first.
+    blender = find_blender(req.get("blenderPath"))
 
     downloaded = 0
     with tempfile.TemporaryDirectory(prefix="t2m-assets-") as work:

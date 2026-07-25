@@ -250,3 +250,13 @@ def test_an_unknown_request_field_is_rejected(tmp_path):
     with pytest.raises(assets_module.AssetError) as caught:
         assets_module.search({"query": "x", "sortBy": "polycount"})
     assert caught.value.code == "INVALID_REQUEST"
+
+
+def test_a_bad_request_is_reported_before_a_missing_blender(library, tmp_path):
+    """Ordering, not cosmetics. On a machine with no Blender this layer used to
+    answer every question with BLENDER_MISSING, so a typo in an id looked like
+    an environment problem and sent the caller off installing things."""
+    proc = run_cli("fetch", "--id", "ghost", "--out-dir", str(tmp_path),
+                   "--endpoint", library.url, "--blender-path", "/nowhere/blender")
+    assert proc.returncode == 1
+    assert error_envelope(proc)["code"] == "ASSET_MISSING"
