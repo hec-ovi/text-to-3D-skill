@@ -5,42 +5,94 @@
   "description": "Params in for the rig layer: one GLB by reference plus what kind of thing it is.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["glb", "subject"],
+  "required": [
+    "glb",
+    "subject"
+  ],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": {
+      "type": "string",
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
+    },
     "glb": {
       "type": "object",
       "description": "Reference to a GLB on the shared filesystem. Shape-compatible with image2mesh's MeshResult.glb.",
       "additionalProperties": true,
-      "required": ["uri"],
+      "required": [
+        "uri"
+      ],
       "properties": {
-        "uri": { "type": "string" },
-        "mediaType": { "type": "string", "enum": ["model/gltf-binary"] },
-        "byteSize": { "type": "integer", "minimum": 1 },
+        "uri": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": [
+            "model/gltf-binary"
+          ]
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 1
+        },
         "checksum": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["sha256"],
-          "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+          "required": [
+            "sha256"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
         }
       }
     },
     "subject": {
       "type": "string",
-      "enum": ["humanoid", "prop"],
+      "enum": [
+        "humanoid",
+        "prop"
+      ],
       "description": "humanoid fits a skeleton to the mesh and skins it. prop adds no armature at all: the node itself is animated and an optional socket empty marks an attachment point, which is what a game engine wants from a barrel."
     },
     "animations": {
       "type": "array",
       "description": "Clips to author. humanoid: idle, walk, run, jump. prop: spin, bob. Omit for the whole default set (all four for a humanoid, spin for a prop).",
-      "items": { "type": "string", "enum": ["idle", "walk", "run", "jump", "spin", "bob"] }
+      "items": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "walk",
+          "run",
+          "jump",
+          "spin",
+          "bob"
+        ]
+      }
     },
     "socket": {
       "type": "string",
       "description": "prop only. Name for an empty parented to the mesh, exported as a node a caller can attach to. glTF has no socket concept, so a named node is the convention."
     },
-    "outDir": { "type": "string", "description": "Where the rigged GLB lands. Defaults to the input's directory." },
-    "blenderPath": { "type": "string", "description": "Blender executable. Omit to search $BLENDER, /home/hec/opt/blender-5.2.0-linux-x64/blender, then PATH." },
-    "timeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 3600, "default": 900 }
+    "outDir": {
+      "type": "string",
+      "description": "Where the rigged GLB lands. Defaults to the input's directory."
+    },
+    "blenderPath": {
+      "type": "string",
+      "description": "Blender executable. Omit to search $BLENDER, /home/hec/opt/blender-5.2.0-linux-x64/blender, then PATH."
+    },
+    "timeoutSeconds": {
+      "type": "integer",
+      "minimum": 30,
+      "maximum": 3600,
+      "default": 900
+    }
   }
 }

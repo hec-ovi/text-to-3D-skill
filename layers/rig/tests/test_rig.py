@@ -9,8 +9,10 @@ fixture and is skipped, with a note, when no Blender is installed.
 import hashlib
 import json
 import os
+import pathlib
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 
@@ -43,7 +45,7 @@ def sha256(path):
         return hashlib.sha256(fh.read()).hexdigest()
 
 
-def fake_blender(tmp_path, report=None, write_glb=True, exit_code=0):
+def fake_blender(tmp_path, report=None, write_glb=True, exit_code=0, glb=RIGGED):
     """A stand-in for Blender: writes the report it was told to and a real GLB.
 
     It reads the job file the driver wrote, so the handoff itself is exercised;
@@ -66,7 +68,7 @@ job = json.load(open(argv[-1]))
 json.dump({{"argv": argv, "job": job}}, open({str(argv_path)!r}, "w"))
 open(job["outJson"], "w").write({json.dumps(payload)!r})
 if {write_glb!r}:
-    shutil.copyfile({RIGGED!r}, job["out"])
+    shutil.copyfile({glb!r}, job["out"])
 sys.exit({exit_code})
 """)
     script.chmod(script.stat().st_mode | stat.S_IEXEC)
@@ -317,3 +319,100 @@ def test_the_rigged_glb_is_a_file_a_loader_can_open(tmp_path):
     assert len(gltf["skins"]) == 1
     assert "inverseBindMatrices" in gltf["skins"][0]
     assert [a["name"] for a in gltf["animations"]] == ["walk"]
+
+
+# ---- the pose the mesh arrived in -------------------------------------------
+
+
+def test_pose_findings_reach_the_envelope_and_validate(tmp_path):
+    """The rig binds whatever pose it is handed, so the one useful thing it can
+    do about a bad one is say so in the result rather than swallow it."""
+    finding = {
+        "code": "FEET_APART_IN_DEPTH",
+        "measured": 0.356,
+        "detail": "the feet are 36% of the figure's height apart front to back.",
+    }
+    blender, _ = fake_blender(tmp_path, report={
+        "ok": True,
+        "result": {"subject": "humanoid", "vertices": 48, "faces": 72,
+                   "blender": "stand-in 1.0", "weightedVertices": 48,
+                   "bones": ["mixamorig:Hips"], "pose": [finding],
+                   "animations": [{"name": "idle", "frames": 61,
+                                   "durationSeconds": 2.5, "loop": True}]},
+    })
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode == 0, proc.stderr
+
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+    assert result["poseWarnings"] == [finding]
+
+
+def test_a_clean_pose_reports_an_empty_list_not_a_missing_field(tmp_path):
+    """Absent and "nothing wrong" have to be different answers, or a caller
+    cannot tell a good pose from a rig that never looked."""
+    blender, _ = fake_blender(tmp_path)
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+    assert result["poseWarnings"] == []
+
+
+def with_clip_renamed(source, name, dest):
+    """A copy of a GLB with its single animation renamed.
+
+    The stand-in Blender copies a fixture out as its export, and the driver
+    checks the clips the *file* carries against the clips that were asked for.
+    The only rigged fixture holds an "idle", so a prop run needs one holding a
+    "spin" or the run fails on the clip check before it ever gets to the pose.
+    """
+    data = pathlib.Path(source).read_bytes()
+    json_len = struct.unpack_from("<I", data, 12)[0]
+    gltf = json.loads(data[20:20 + json_len])
+    rest = data[20 + json_len:]
+    for animation in gltf.get("animations", []):
+        animation["name"] = name
+
+    chunk = json.dumps(gltf).encode()
+    chunk += b" " * (-len(chunk) % 4)
+    out = (struct.pack("<III", 0x46546C67, 2, 12 + 8 + len(chunk) + len(rest))
+           + struct.pack("<II", len(chunk), 0x4E4F534A) + chunk + rest)
+    pathlib.Path(dest).write_bytes(out)
+    return str(dest)
+
+
+def test_a_prop_is_never_asked_about_its_pose(tmp_path):
+    """There is no A-pose for a barrel."""
+    spinner = with_clip_renamed(RIGGED, "spin", tmp_path / "spinner.glb")
+    blender, _ = fake_blender(tmp_path, glb=spinner, report={
+        "ok": True,
+        "result": {"subject": "prop", "vertices": 48, "faces": 72,
+                   "blender": "stand-in 1.0", "bones": [],
+                   "animations": [{"name": "spin", "frames": 61,
+                                   "durationSeconds": 2.5, "loop": True}]},
+    })
+    proc = run_cli("--glb", HUMANOID, "--subject", "prop", "--animations", "spin",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    result = json.loads(proc.stdout)
+    validate(result, RESULT_SCHEMA)
+    assert "poseWarnings" not in result
+
+
+def test_an_unknown_finding_code_is_rejected_by_the_schema(tmp_path):
+    """The codes are a closed set, so a typo in the rig script fails the run
+    instead of reaching a caller that switches on them."""
+    blender, _ = fake_blender(tmp_path, report={
+        "ok": True,
+        "result": {"subject": "humanoid", "vertices": 48, "faces": 72,
+                   "blender": "stand-in 1.0", "weightedVertices": 48,
+                   "bones": ["mixamorig:Hips"],
+                   "pose": [{"code": "LOOKS_A_BIT_ODD", "measured": 1, "detail": "hm."}],
+                   "animations": [{"name": "idle", "frames": 61,
+                                   "durationSeconds": 2.5, "loop": True}]},
+    })
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path), "--blender-path", blender)
+    assert proc.returncode != 0
+    assert "LOOKS_A_BIT_ODD" in proc.stderr or "poseWarnings" in proc.stderr

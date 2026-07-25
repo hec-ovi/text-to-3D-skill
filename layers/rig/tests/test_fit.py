@@ -148,3 +148,79 @@ def test_measuring_is_linear_enough_to_run_on_a_real_mesh():
     started = time.monotonic()
     fit.limbs(dense)
     assert time.monotonic() - started < 5.0
+
+
+# ---- the pose report --------------------------------------------------------
+#
+# The findings below are the reason the image stage asks for an A-pose at all.
+# Whatever the pose is, the rig binds it as the rest pose and every clip plays
+# on top of it, so a figure caught mid-stride walks with a limp forever.
+
+
+def codes(points):
+    return [f["code"] for f in fit.pose_report(fit.limbs(points))]
+
+
+def test_a_squarely_standing_figure_reports_nothing():
+    assert codes(body()) == []
+
+
+def test_a_stride_is_caught_by_depth_not_by_width():
+    """One foot forward is the failure an X-only measurement cannot see: the
+    feet are the same distance apart either way, just rotated into depth."""
+    strided = body(left_foot=(-0.15, 0.0, -0.28), right_foot=(0.15, 0.0, 0.28))
+    report = fit.pose_report(fit.limbs(strided))
+    stride = next(f for f in report if f["code"] == "FEET_APART_IN_DEPTH")
+    assert stride["measured"] > fit.STRIDE_DEPTH
+    assert "walk clip" in stride["detail"]
+
+
+def test_a_lifted_foot_is_caught():
+    lifted = body(right_foot=(0.15, 0.22, 0.0))
+    assert "FOOT_OFF_THE_GROUND" in codes(lifted)
+
+
+def test_an_arm_pressed_to_the_torso_is_the_worst_finding():
+    """Bone heat is what cannot recover from this, so it sorts first: a fused
+    arm diffuses its weights into the ribs and lifting it drags the chest."""
+    pressed = body(left_hand=(-0.19, 0.95, 0.0), right_hand=(0.19, 0.95, 0.0))
+    report = fit.pose_report(fit.limbs(pressed))
+    assert report, "an arm against the torso has to be reported"
+    assert report[0]["code"] in {"ARMS_AGAINST_TORSO", "LIMB_NOT_MEASURED"}
+
+
+def test_a_limb_that_could_not_be_traced_is_reported_not_silently_templated():
+    """No chain means the rig falls back to the template for that bone, which
+    is quieter than a fused arm and just as wrong."""
+    measurement = fit.limbs(body())
+    del measurement["chains"]["RightArm"]
+    report = fit.pose_report(measurement)
+    missing = next(f for f in report if f["code"] == "LIMB_NOT_MEASURED")
+    assert missing["measured"] == 1
+    assert "RightArm" in missing["detail"]
+
+
+def test_a_bent_limb_is_measured_as_a_fraction_of_its_own_length():
+    """A fraction, not an absolute distance, so a 4 cm figurine and a 3 m statue
+    trip the same threshold."""
+    measurement = fit.limbs(body())
+    chain = measurement["chains"]["LeftLeg"]
+    length = fit._length(chain["axis"])
+    chain["bend"] = (0.5, length * (fit.BENT_LIMB + 0.05))
+    report = fit.pose_report(measurement)
+    bent = next(f for f in report if f["code"] == "LIMB_BENT")
+    assert bent["measured"] == pytest.approx(fit.BENT_LIMB + 0.05, abs=0.02)
+    assert "LeftLeg" in bent["detail"]
+
+
+def test_every_finding_carries_a_code_a_number_and_a_reason():
+    """The envelope is contract-checked against schema/rig_result.json, so a
+    finding missing a field fails validation rather than being dropped."""
+    strided = body(left_foot=(-0.15, 0.12, -0.30), right_foot=(0.15, 0.0, 0.30),
+                   left_hand=(-0.19, 0.95, 0.0))
+    report = fit.pose_report(fit.limbs(strided))
+    assert report
+    for finding in report:
+        assert set(finding) == {"code", "measured", "detail"}
+        assert isinstance(finding["measured"], (int, float))
+        assert finding["detail"].endswith(".")

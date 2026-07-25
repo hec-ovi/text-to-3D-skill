@@ -52,21 +52,42 @@ OBJECT_FRAMING = (
 # unspecified stance comes out mid-action, which the rig then binds as the rest
 # pose so every clip plays on top of it. This asks for the pose a rigger wants
 # and puts the face where the camera can resolve it.
-# Every clause here is load-bearing. The A-pose and the clear gap between arm and
-# torso are what bone heat needs: a fused arm diffuses weight across the join and
-# drags the body with it. The front view is what a face needs, because the
-# reconstructor sees exactly one view and invents whatever the camera hid. The
-# soft key light is a compromise: fully flat light bakes cleanly but removes the
-# shading gradient a single view uses to infer brow, nose and cheek relief.
+#
+# Every clause is load-bearing, and the second half of them were added after
+# measuring what actually came back. Running layers/rig's pose report over the
+# characters this stage had produced found, in order of how often and how badly:
+#
+#   a stride         feet 36% of the figure's height apart front to back, which
+#                    an "A-pose" instruction alone does not prevent because a
+#                    walking figure can still have its arms out
+#   untraceable arms an arm holding or crossing something never separates from
+#                    the torso in cross-section, and bone heat then bleeds its
+#                    weights into the ribs
+#   no shoulder line a cloak or hair across the shoulders means no band splits
+#                    into torso-plus-two-arms, so the shoulders are a guess
+#   a bent limb      a limb bowed more than a ninth of its own length off
+#                    straight, baked into the bind pose for good
+#
+# So the stance is now spelled out as a *symmetric, static, weight-even* one
+# rather than named, the hands are explicitly empty, and the shoulders are asked
+# to be clear. The front view is what a face needs, because the reconstructor
+# sees exactly one view and invents whatever the camera hid. The soft key light
+# is a compromise: fully flat light bakes cleanly but removes the shading
+# gradient a single view uses to infer brow, nose and cheek relief.
 CHARACTER_FRAMING = (
-    "{subject}, standing in a neutral A-pose facing the camera directly, feet flat "
-    "on the ground and shoulder width apart, legs straight, arms straight and held "
-    "away from the body with a clear gap between the arms and the torso, palms "
-    "facing in, head level and looking straight ahead, face clearly visible and "
-    "unobstructed, sharp detailed eyes, natural skin, symmetrical, full body "
-    "visible from head to feet, soft key light from the front with gentle fill, "
-    "plain light grey backdrop, empty background, sharp focus, character reference "
-    "sheet, front view"
+    "{subject}, standing still in a neutral A-pose facing the camera directly, "
+    "perfectly symmetrical stance with weight evenly on both feet, both feet flat on "
+    "the ground side by side on the same line and shoulder width apart, neither foot "
+    "stepped forward or back, legs straight and vertical, knees not bent, arms "
+    "straight and lowered about 45 degrees away from the body with a clear open gap "
+    "between each arm and the torso, elbows not bent, hands empty and open with palms "
+    "facing in, nothing held or carried, arms not crossing the body, shoulders bare "
+    "and unobstructed with no cape, cloak, hair or fabric draped over them, head level "
+    "and looking straight ahead, face clearly visible and unobstructed, sharp detailed "
+    "eyes, natural skin, full body visible from head to feet, standing at rest, not "
+    "walking, not running, not posing, no action, soft key light from the front with "
+    "gentle fill, plain light grey backdrop, empty background, sharp focus, character "
+    "reference sheet, front view, T-pose reference orthographic style"
 )
 
 # Words that mean the subject is a person or creature that will be rigged. The
@@ -74,19 +95,72 @@ CHARACTER_FRAMING = (
 # few tokens, product framing on a person hides the face and bakes in a pose.
 CHARACTER_WORDS = (
     "man", "male", "woman", "female", "boy", "girl", "person", "human", "guy",
-    "lady", "character", "warrior", "knight", "soldier", "wizard", "mage",
-    "witch", "elf", "orc", "dwarf", "goblin", "hero", "heroine", "villain",
-    "ninja", "samurai", "pirate", "viking", "barbarian", "archer", "ranger",
-    "paladin", "monk", "priest", "king", "queen", "prince", "princess",
-    "guard", "adventurer", "explorer", "astronaut", "robot", "android",
-    "zombie", "skeleton", "demon", "angel", "fairy", "monster", "creature",
+    "lady", "child", "kid", "character", "warrior", "knight", "soldier",
+    "wizard", "mage", "witch", "sorcerer", "necromancer", "druid", "shaman",
+    "bard", "elf", "orc", "dwarf", "goblin", "troll", "ogre", "giant", "gnome",
+    "hero", "heroine", "villain", "ninja", "samurai", "pirate", "viking",
+    "barbarian", "berserker", "gladiator", "archer", "ranger", "rogue",
+    "assassin", "mercenary", "paladin", "templar", "crusader", "monk",
+    "priest", "nun", "king", "queen", "prince", "princess", "guard",
+    "adventurer", "explorer", "astronaut", "pilot", "sailor", "cowboy",
+    "detective", "blacksmith", "hunter", "swordsman", "spearman", "robot",
+    "android", "cyborg", "mutant", "alien", "zombie", "skeleton", "demon",
+    "devil", "angel", "fairy", "vampire", "werewolf", "mermaid", "centaur",
+    "monster", "creature", "beast", "figure", "statue",
 )
 
 
+# Things a character owns or wears. These matter because a character word used
+# as an adjective describes a prop, not a person: "a knight's helmet" is a
+# helmet. The cost of getting that backwards went up when the stance
+# instructions above got insistent, because a full-body A-pose prompt applied to
+# a helmet does not produce a helmet, it produces someone wearing one.
+WORN_OR_CARRIED = (
+    "helmet", "helm", "mask", "visor", "crown", "hat", "hood", "armour", "armor",
+    "breastplate", "cuirass", "pauldron", "gauntlet", "glove", "boot", "shoe",
+    "belt", "cloak", "cape", "robe", "shield", "sword", "blade", "axe", "spear",
+    "lance", "bow", "arrow", "dagger", "knife", "hammer", "mace", "staff",
+    "wand", "gun", "rifle", "pistol", "banner", "flag", "ring", "amulet",
+    "pendant", "necklace", "bracer", "backpack", "pack", "ship", "horse",
+    "throne", "tomb", "statue", "bust", "head", "skull",
+)
+
+
+def _tokens(subject):
+    """Lowercase word tokens, with a possessive "s" dropped.
+
+    "a knight's helmet" splits into knight / s / helmet, and that stray s is
+    what would otherwise stop the two words from reading as adjacent.
+    """
+    return [w for w in re.findall(r"[a-z]+", subject.lower()) if w != "s"]
+
+
+def _singular(word):
+    return word.rstrip("s")
+
+
 def looks_like_a_character(subject):
-    """True when the subject reads as something with a face and limbs."""
-    words = re.findall(r"[a-z]+", subject.lower())
-    return any(word in CHARACTER_WORDS for word in words)
+    """True when the subject reads as something with a face and limbs.
+
+    A trailing s is stripped as well as matched, so "two warriors" gets the
+    stance instructions. TRELLIS reconstructs one subject regardless, but a
+    plural prompt is already going to disappoint and it should at least
+    disappoint in a rigged A-pose.
+
+    A character word directly in front of something worn or carried is an
+    adjective and loses: "a samurai sword" is a sword. Anything less direct
+    still wins, so "a warrior with a sword" is a warrior.
+    """
+    words = _tokens(subject)
+    found = False
+    for index, word in enumerate(words):
+        if not (word in CHARACTER_WORDS or _singular(word) in CHARACTER_WORDS):
+            continue
+        following = words[index + 1] if index + 1 < len(words) else ""
+        if following in WORN_OR_CARRIED or _singular(following) in WORN_OR_CARRIED:
+            continue
+        found = True
+    return found
 
 
 def frame(subject, kind="auto"):

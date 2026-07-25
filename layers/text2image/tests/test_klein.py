@@ -156,9 +156,27 @@ def test_a_character_gets_the_pose_a_rig_needs(tmp_path):
     assert "feet flat" in sent
     assert "front view" in sent
     assert "face clearly visible and unobstructed" in sent
-    assert "clear gap between the arms and the torso" in sent
+    assert "clear open gap between each arm and the torso" in sent
     assert "product photograph" not in sent
     assert "three-quarter view" not in sent
+
+
+def test_the_character_framing_covers_what_the_pose_report_actually_caught(tmp_path):
+    """Each clause here answers a finding measured on real output by the rig
+    layer's pose report: a stride, an arm that never separates from the torso,
+    a shoulder line buried under a cloak, a bent limb."""
+    with StubComfy() as comfy:
+        run_cli("--prompt", "an elven ranger", "--out-dir", str(tmp_path),
+                "--endpoint", comfy.url)
+        sent = comfy.graphs[0]["4"]["inputs"]["text"]
+
+    assert "neither foot stepped forward or back" in sent      # FEET_APART_IN_DEPTH
+    assert "side by side on the same line" in sent             # FEET_APART_IN_DEPTH
+    assert "hands empty" in sent                               # LIMB_NOT_MEASURED
+    assert "arms not crossing the body" in sent                # LIMB_NOT_MEASURED
+    assert "no cape, cloak, hair or fabric draped over them" in sent  # SHOULDERS_NOT_FOUND
+    assert "knees not bent" in sent                            # LIMB_BENT
+    assert "elbows not bent" in sent                           # LIMB_BENT
 
 
 def test_a_prop_still_gets_the_product_framing(tmp_path):
@@ -194,6 +212,30 @@ def test_character_detection_reads_the_words_not_the_whole_string(tmp_path):
     assert not looks_like_a_character("a wooden barrel")
     # "manhole" contains "man" but is not a character: whole words only.
     assert not looks_like_a_character("a rusty manhole cover")
+
+
+def test_a_character_word_in_front_of_a_prop_describes_the_prop():
+    """The cost of this went up with the stance instructions: a full-body A-pose
+    prompt applied to a helmet does not make a helmet, it makes someone wearing
+    one."""
+    from klein import looks_like_a_character
+    assert not looks_like_a_character("a knight's helmet")
+    assert not looks_like_a_character("a knights helmet")
+    assert not looks_like_a_character("a samurai sword")
+    assert not looks_like_a_character("an orc shield")
+    assert not looks_like_a_character("a wizard staff")
+    # Anything less direct than adjacency is still the person.
+    assert looks_like_a_character("a warrior with a sword")
+    assert looks_like_a_character("a knight holding a helmet")
+    assert looks_like_a_character("a pirate captain")
+
+
+def test_a_plural_subject_still_gets_the_stance():
+    """TRELLIS will make one confused thing of it either way, but it should at
+    least be one confused thing that binds."""
+    from klein import looks_like_a_character
+    assert looks_like_a_character("two viking warriors")
+    assert looks_like_a_character("elven archers")
 
 
 def test_raw_prompt_bypasses_framing(tmp_path):

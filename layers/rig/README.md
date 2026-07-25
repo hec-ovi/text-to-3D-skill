@@ -33,6 +33,12 @@ The phase relationship worth knowing: a negative X rotation swings a limb forwar
 | `fixtures/humanoid-rigged-idle.glb` | what a rigged file looks like, for the stand-in Blender |
 | `tests/test_rig.py` | the CLI against a stand-in, plus the real Blender when it is installed |
 
+## The pose is the whole game
+
+Whatever pose the mesh arrives in becomes the rest pose. Bone heat binds it, every clip plays on top of it, and there is no undoing it downstream: a figure reconstructed mid-stride walks with a limp in all four clips. That is why `text2image` spends a paragraph asking for an A-pose, and why `pose_report` in `src/fit.py` checks whether it got one.
+
+Run over the characters this repo had already generated, it found: one figure with its feet 36% of its height apart front to back, two with an arm that never separates from the torso in cross-section, one with no measurable shoulder line under its hair, and bent limbs on most of them. Every clause added to the character framing answers one of those. The findings ride out on `RigResult.poseWarnings` rather than failing the run, because a rig on a bad pose is still a rig and the caller is the one who can regenerate.
+
 ## Things that will bite you
 
 - **Bone heat fails loudly on a dirty mesh.** "Bone Heat Weighting: failed to find solution for one or more bones" means duplicate vertices, degenerate faces or an island no bone can see. The cleanup pass before binding (merge by distance, delete loose, dissolve degenerate, consistent normals) is not optional on a marching-cubes mesh.

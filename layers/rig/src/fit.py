@@ -243,8 +243,16 @@ def limbs(verts, slices=48):
                 axis = follow(profile, max(0, crotch_band - 1), -1, seed["centre"], cell,
                               floor_y=low)
                 if len(axis) >= 3:
+                    # follow() extended the chain down to the floor so the ankle
+                    # bone is not left hanging, which means the last point is
+                    # synthetic and always sits at `low`. The band before it is
+                    # the lowest one this leg was actually seen in, and that is
+                    # the only one that can say whether the foot is off the
+                    # ground.
+                    foot_y = axis[-2][1]
                     axis = [(seed["centre"][0], crotch + height * 0.06, seed["centre"][1])] + axis
-                    chains[f"{side}Leg"] = {"axis": axis, "bend": bend(axis)}
+                    chains[f"{side}Leg"] = {"axis": axis, "bend": bend(axis),
+                                            "source": "island", "footY": foot_y}
 
     # Arms: seed from the outermost islands at the shoulder band and walk down.
     # An A-posed arm leaves the torso there; an arm pressed to the body does not
@@ -256,19 +264,21 @@ def limbs(verts, slices=48):
             for side, seed in zip(("Left", "Right"), (found[0], found[-1])):
                 axis = follow(profile, shoulder_band, -1, seed["centre"], cell)
                 if len(axis) >= 3:
-                    chains[f"{side}Arm"] = {"axis": axis, "bend": bend(axis)}
+                    chains[f"{side}Arm"] = {"axis": axis, "bend": bend(axis), "source": "island"}
         else:
             # One island at the shoulder: the arms are still attached to the
             # torso in cross-section. Fall back to the side lobes of that island.
             for side, sign in (("Left", -1.0), ("Right", 1.0)):
                 lobe = _side_lobe(profile, shoulder_band, centre_x, sign, cell)
                 if len(lobe) >= 3:
-                    chains[f"{side}Arm"] = {"axis": lobe, "bend": bend(lobe)}
+                    chains[f"{side}Arm"] = {"axis": lobe, "bend": bend(lobe), "source": "lobe"}
 
     return {
         "low": low, "high": high, "height": height,
         "centreX": centre_x, "centreZ": centre_z,
         "crotch": crotch, "shoulderY": shoulder_y,
+        "crotchFound": crotch_band is not None,
+        "shoulderFound": shoulder_band is not None,
         "chains": chains,
     }
 
@@ -295,3 +305,143 @@ def _side_lobe(profile, shoulder_band, centre_x, sign, cell):
         pick = max(outer, key=lambda p: sign * p[0])
         axis.append((pick[0] - sign * cell, y, pick[1]))
     return axis
+
+
+# ---- pose ------------------------------------------------------------------
+#
+# Everything below reads the measurement above and says nothing about how to
+# build a skeleton. It exists because the pose the mesh arrives in is baked in
+# permanently: the rig binds it as the rest pose, every clip plays on top of it,
+# and no amount of animation gets a walking figure back to standing. The image
+# stage asks for an A-pose (layers/text2image), but a diffusion model is a
+# suggestion engine, so the mesh has to be checked rather than assumed.
+#
+# Each finding is a warning, never an error. A rig on a bad pose is still a rig,
+# and the caller is better served by a usable file plus a note about what is
+# wrong with it than by a refusal.
+
+# A limb whose furthest point off its own chord exceeds this fraction of its
+# length is bent rather than straight.
+BENT_LIMB = 0.11
+# Feet this far apart in depth, as a fraction of the figure's height, is a
+# stride and not a stance.
+STRIDE_DEPTH = 0.055
+# A foot this far above the lowest point of the mesh is mid-step.
+FOOT_LIFT = 0.05
+# Limbs whose measured lengths differ by more than this fraction are not a pair.
+ASYMMETRY = 0.16
+
+
+def _length(axis):
+    return sum(math.dist(a, b) for a, b in zip(axis, axis[1:]))
+
+
+def pose_report(measurement):
+    """Findings about the pose a mesh was reconstructed in, worst first.
+
+    Takes what `limbs()` returned. Each finding is a dict with a `code`, the
+    `measured` number behind it, and a `detail` saying what it does to the rig.
+    An empty list means the figure is standing squarely enough to bind.
+    """
+    height = measurement.get("height") or 1.0
+    chains = measurement.get("chains", {})
+    findings = []
+
+    # Worst first, because the arms are what bone heat cannot recover from: an
+    # arm touching the torso diffuses its weights straight into the ribs, and
+    # then raising that arm drags the chest with it.
+    fused = sorted(side for side in ("Left", "Right")
+                   if chains.get(f"{side}Arm", {}).get("source") == "lobe")
+    if fused:
+        findings.append({
+            "code": "ARMS_AGAINST_TORSO",
+            "measured": len(fused),
+            "detail": f"the {' and '.join(fused).lower()} arm never separates from the torso in "
+                      "cross-section, so its weights bleed into the chest and lifting it drags "
+                      "the body. Regenerate with a wider A-pose.",
+        })
+
+    # A limb with no chain at all is quieter than a fused one and just as bad:
+    # the rig falls back to the templated placement for it, so the bone is where
+    # an average human's would be rather than where this mesh's is.
+    missing = sorted(name for name in ("LeftArm", "RightArm", "LeftLeg", "RightLeg")
+                     if name not in chains)
+    if missing:
+        findings.append({
+            "code": "LIMB_NOT_MEASURED",
+            "measured": len(missing),
+            "detail": f"{', '.join(missing)} could not be traced through the mesh, so "
+                      f"{'they are' if len(missing) > 1 else 'it is'} placed from the template "
+                      "rather than from this figure. Loose clothing, hair over the shoulders and "
+                      "arms held across the body all cause it.",
+        })
+
+    if not measurement.get("shoulderFound", True):
+        findings.append({
+            "code": "SHOULDERS_NOT_FOUND",
+            "measured": 0,
+            "detail": "no band in the upper body splits into a torso with an arm either side, so "
+                      "the shoulder line is a fraction of the height rather than a measurement. "
+                      "A cloak, long hair or a hood will do this.",
+        })
+
+    if not measurement.get("crotchFound", True):
+        findings.append({
+            "code": "LEGS_NOT_SEPARATED",
+            "measured": 0,
+            "detail": "no band splits into two legs, so the hips are a guess. A robe, a long "
+                      "coat or feet together will do this; ask for feet shoulder width apart.",
+        })
+
+    left, right = chains.get("LeftLeg"), chains.get("RightLeg")
+    if left and right:
+        depth = abs(left["axis"][-1][2] - right["axis"][-1][2]) / height
+        if depth > STRIDE_DEPTH:
+            findings.append({
+                "code": "FEET_APART_IN_DEPTH",
+                "measured": round(depth, 3),
+                "detail": f"the feet are {depth:.0%} of the figure's height apart front to back, "
+                          "which is a stride. The walk clip will play on top of it and the "
+                          "character will always look like it is limping.",
+            })
+
+        lengths = sorted((_length(left["axis"]), _length(right["axis"])))
+        if lengths[1] > 0 and (lengths[1] - lengths[0]) / lengths[1] > ASYMMETRY:
+            findings.append({
+                "code": "LIMBS_ASYMMETRIC",
+                "measured": round((lengths[1] - lengths[0]) / lengths[1], 3),
+                "detail": "the two legs measure very differently, so at least one of them was "
+                          "reconstructed foreshortened or fused to something. The bone lengths "
+                          "will not match the mesh.",
+            })
+
+    low = measurement.get("low", 0.0)
+    for side in ("Left", "Right"):
+        chain = chains.get(f"{side}Leg")
+        if not chain:
+            continue
+        lift = (chain.get("footY", chain["axis"][-1][1]) - low) / height
+        if lift > FOOT_LIFT:
+            findings.append({
+                "code": "FOOT_OFF_THE_GROUND",
+                "measured": round(lift, 3),
+                "detail": f"the {side.lower()} foot sits {lift:.0%} of the figure's height above "
+                          "the lowest point of the mesh, so the character is caught mid-step and "
+                          "will hover once it is standing on a floor.",
+            })
+
+    for name, chain in sorted(chains.items()):
+        length = _length(chain["axis"])
+        if length <= 0:
+            continue
+        deviation = chain["bend"][1] / length
+        if deviation > BENT_LIMB:
+            findings.append({
+                "code": "LIMB_BENT",
+                "measured": round(deviation, 3),
+                "detail": f"the {name} bows {deviation:.0%} of its own length off straight. A "
+                          "bend that large is baked into the bind pose and every clip inherits "
+                          "it.",
+            })
+
+    return findings

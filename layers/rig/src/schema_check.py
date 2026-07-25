@@ -71,6 +71,19 @@ def _check(value, schema, path=""):
             if key in value:
                 _check(value[key], sub, f"{path}.{key}" if path else key)
 
+    # Arrays used to stop here, which meant every `items` schema in this layer
+    # was decorative: a list of the wrong shape entirely, or a closed enum with
+    # a value outside it, validated clean as long as the list itself was a list.
+    if isinstance(value, list):
+        if "minItems" in schema and len(value) < schema["minItems"]:
+            _fail(path, f"needs at least {schema['minItems']} items, got {len(value)}")
+        if "maxItems" in schema and len(value) > schema["maxItems"]:
+            _fail(path, f"allows at most {schema['maxItems']} items, got {len(value)}")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                _check(item, item_schema, f"{path}[{index}]")
+
 
 def validate(payload, schema):
     """Raise SchemaError unless payload satisfies schema. Returns payload."""

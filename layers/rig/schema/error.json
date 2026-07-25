@@ -5,9 +5,19 @@
   "description": "The closed set of ways the rig layer fails. Written to stderr as JSON, exit code 1.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contractVersion", "code", "message"],
+  "required": [
+    "contractVersion",
+    "code",
+    "message"
+  ],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.0" },
+    "contractVersion": {
+      "type": "string",
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
+    },
     "code": {
       "type": "string",
       "enum": [
@@ -22,7 +32,11 @@
         "GLB_INVALID"
       ]
     },
-    "message": { "type": "string" },
-    "detail": { "type": "string" }
+    "message": {
+      "type": "string"
+    },
+    "detail": {
+      "type": "string"
+    }
   }
 }

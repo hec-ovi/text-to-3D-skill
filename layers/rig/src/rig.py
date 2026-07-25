@@ -33,7 +33,7 @@ REQ_SCHEMA = os.path.join(LAYER, "schema", "rig_request.json")
 RES_SCHEMA = os.path.join(LAYER, "schema", "rig_result.json")
 BLENDER_SCRIPT = os.path.join(HERE, "blender_rig.py")
 
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
 
 GLB_MAGIC = 0x46546C67
 CHUNK_JSON = 0x4E4F534A
@@ -279,6 +279,11 @@ def rig(request):
         result["skeleton"]["weightedVertices"] = inner["weightedVertices"]
     if "socket" in inner:
         result["socket"] = inner["socket"]
+    # A humanoid always reports on the pose it was handed, even when there is
+    # nothing wrong with it: an empty list is the useful answer to "did anyone
+    # look?", and its absence would be indistinguishable from an old result.
+    if subject == "humanoid":
+        result["poseWarnings"] = inner.get("pose", [])
 
     # The clips the file has, not the clips that were asked for.
     exported = set(summary["animations"])

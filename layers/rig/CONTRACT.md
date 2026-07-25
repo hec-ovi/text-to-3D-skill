@@ -1,6 +1,6 @@
 # CONTRACT - rig
 
-`contractVersion: 1.0`
+`contractVersion: 1.1`
 
 ## Purpose
 
@@ -24,6 +24,10 @@ Entry point: `python3 src/rig.py --glb <file> --subject humanoid --out-dir <dir>
 | Param | Schema | Postconditions |
 | --- | --- | --- |
 | `RigResult` | [`schema/rig_result.json`](schema/rig_result.json) | `glb.uri` exists and hashes to `glb.checksum.sha256`. It has been parsed before this envelope was emitted: glTF magic, container version 2, a JSON chunk, a BIN chunk, at least one mesh, and for a humanoid a skin plus `JOINTS_0` on a primitive. `skeleton.joints` and the `animations` list are read back out of the written file, so a clip that failed to author is an error rather than a claim. |
+
+`poseWarnings` is present on every humanoid result and absent for a prop. It reports what is wrong with the pose the *source* mesh was reconstructed in, worst first, each finding carrying a `code` from a closed set, the `measured` number behind it, and a `detail` saying what it does to the rig. An empty list means nothing was found, which is a different answer from the field being missing.
+
+These are observations, never failures. The pose is baked in: the rig binds it as the rest pose and every clip plays on top of it, so a figure caught mid-stride limps forever and no amount of animation gets it back to standing. The layer cannot fix that, and refusing to rig would leave the caller with nothing, so it rigs and says so. The caller is the one who can go back to `text2image` and regenerate.
 
 The GLB crosses the boundary **by reference**: path, media type, byte size, sha256. `RigResult.glb` is shape-compatible with `image2mesh`'s `MeshResult.glb`, so anything that consumes one consumes the other.
 
@@ -67,6 +71,7 @@ Blender 5.x, called as `blender --background --python src/blender_rig.py`. Nothi
 
 1. `src/rig.py` is the driver and owns the contract; `src/blender_rig.py` runs inside Blender and owns the geometry. They talk through a job JSON and a report JSON, never through stdout, because Blender prints its own banner there.
 2. Adding a clip: add it to `CLIPS` and `clip_poses` in `blender_rig.py`, to `VALID_CLIPS` in `rig.py`, and to the `animations` enum in `schema/rig_request.json`. Bump `contractVersion` minor.
+2b. Adding a pose finding: add the check to `pose_report` in `src/fit.py`, the code to the enum in `schema/rig_result.json`, and a case to `tests/test_fit.py`. Nothing in Blender needs to change; `fit.py` has no bpy import and the findings ride out on the report Blender already writes.
 3. Changing the skeleton is breaking for anyone retargeting onto it. Add bones at the end, keep the Mixamo names, and do not renumber.
 4. The mesh cleanup before binding (merge by distance, drop loose, dissolve degenerate, consistent normals) is what makes bone heat solve at all on a marching-cubes mesh. Removing a step brings back "failed to find solution for one or more bones".
 5. Run `uvx pytest tests/ -q` from this folder. The tests that need Blender skip themselves with a note when it is not installed; the rest use a stand-in.

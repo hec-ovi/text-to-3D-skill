@@ -114,6 +114,10 @@ def measure(mesh_object, slices=48):
     measured = fit.limbs([(v.x, v.y, v.z) for v in verts], slices)
     return {
         "chains": measured["chains"],
+        # What is wrong with the pose the mesh arrived in. Carried out to the
+        # caller rather than acted on here: the rig binds whatever it is given,
+        # and the caller is the one who can decide to regenerate.
+        "pose": fit.pose_report(measured),
         "low": low, "high": high, "height": height,
         "centreX": (min(xs) + max(xs)) / 2,
         "centreZ": (min(zs) + max(zs)) / 2,
@@ -570,6 +574,7 @@ def run(job):
         result["bindCorrection"] = turned
         result["measurements"] = {k: round(float(v), 5) for k, v in marks.items()
                                   if isinstance(v, (int, float))}
+        result["pose"] = marks.get("pose", [])
     else:
         mesh.name = job.get("nodeName", "prop")
         result["animations"] = prop_clips(mesh, job["animations"])
