@@ -60,6 +60,8 @@ No dependency on any other layer. `MeshRequest.image` is shape-compatible with `
 - No envelope is emitted for a GLB that failed structural validation.
 - The layer never writes inside `modelsDir`, which is mounted read-only into the container.
 
+`src/quality.py` is a diagnostic and is deliberately outside this contract: it reads a GLB off disk and prints a report for a human. Nothing in the pipeline calls it, no other layer reads it, and changing what it prints ripples nowhere.
+
 ## How to modify this blackbox safely
 
 1. Engine source lives in `engine/`. It is Vulkan-only on purpose: see [`engine/PROVENANCE.md`](engine/PROVENANCE.md) for what was removed and why, and [`CHANGES.md`](CHANGES.md) for what was changed on top, with the measurement behind each change.

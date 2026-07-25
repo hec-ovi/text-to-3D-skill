@@ -138,6 +138,28 @@ def generate(request):
         raise PipelineError("CONTRACT_VIOLATION", "text2image returned no image reference",
                             stage="text2image")
 
+    # Same argument as the portrait frame above, one stage later. A head is
+    # about an eighth of a standing figure and the UV atlas hands out texels by
+    # surface area, so a face on the engine's default atlas gets an eighth of
+    # them and melts. That was already recorded as the reconstruction's ceiling,
+    # and the two knobs that move it were already exposed; they were just
+    # nobody's default, so every character was generated starved unless the
+    # caller happened to know.
+    #
+    # A character now gets one step up on both: the atlas doubles in each
+    # dimension, which is four times the texels on the same head, and the
+    # texture volume is pinned to 1024 rather than letting the engine drop a
+    # dense decode to 512. Only the second costs inference time. Anything the
+    # caller asked for still wins, and `--framing object` opts out entirely.
+    #
+    # This is reasoned from the surface-area argument and the engine's own
+    # documented behaviour, not measured: the engine is not installed on the
+    # machine this was written on.
+    character = image_result.get("framing") == "character"
+    atlas_for_a_face = 4096 if req["resolution"] >= 1024 else 2048
+    texture_resolution = req.get("textureResolution") or (1024 if character else None)
+    atlas_px = req.get("atlasPx") or (atlas_for_a_face if character else None)
+
     # The seam: an ImageResult.image is shape-compatible with a MeshRequest.image.
     # Nothing is recomputed here, so a checksum drift between the stages surfaces
     # as CHECKSUM_MISMATCH inside image2mesh rather than being papered over.
@@ -149,8 +171,8 @@ def generate(request):
         "backgroundRemoval": req["backgroundRemoval"],
         "seed": image_result.get("seed", 42) % 2147483647,
         **({"targetFaces": req["targetFaces"]} if req.get("targetFaces") else {}),
-        **({"textureResolution": req["textureResolution"]} if req.get("textureResolution") else {}),
-        **({"atlasPx": req["atlasPx"]} if req.get("atlasPx") else {}),
+        **({"textureResolution": texture_resolution} if texture_resolution else {}),
+        **({"atlasPx": atlas_px} if atlas_px else {}),
         "runner": req["runner"],
         "endpoint": req["engineEndpoint"],
         "modelsDir": req["modelsDir"],
@@ -208,9 +230,10 @@ def main(argv=None):
     parser.add_argument("--framing", choices=["auto", "object", "character"], default="auto",
                         help="auto asks for a neutral A-pose when the prompt names a person")
     parser.add_argument("--tex-res", type=int, choices=[512, 1024],
-                        help="PBR volume resolution; force 1024 when the subject has a face")
+                        help="PBR volume resolution. A character already gets 1024; pass 512 to trade a face for engine time")
     parser.add_argument("--atlas", type=int, choices=[512, 1024, 2048, 4096],
-                        help="UV atlas size; 4096 gives a face more texels")
+                        help="UV atlas size. A character already gets 4096 at res 1024 and "
+                             "2048 at res 512; this overrides that either way")
     parser.add_argument("--bg-removal", choices=["auto", "threshold", "birefnet"], default="auto")
     parser.add_argument("--drop-image", action="store_true",
                         help="delete the intermediate PNG once the GLB is written")

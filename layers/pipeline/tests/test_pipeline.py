@@ -274,3 +274,61 @@ def test_unsupported_resolution_is_rejected():
     with pytest.raises(pipeline.PipelineError) as exc:
         pipeline.generate({"prompt": "x", "resolution": 2048})
     assert exc.value.code == "INVALID_REQUEST"
+
+
+def test_a_character_gets_the_texels_a_face_needs_without_being_asked(tmp_path):
+    """A head is about an eighth of a standing figure and the atlas hands out
+    texels by surface area, so on the engine's default atlas a face gets an
+    eighth of them. Both knobs existed; neither was anybody's default."""
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a female elf archer", "--res", "1024",
+                *base_args(tmp_path, comfy, engine))
+    flat = " ".join(json.loads(argv_path.read_text()))
+    assert "--atlas 4096" in flat
+    assert "--tex-res 1024" in flat
+
+
+def test_the_character_atlas_follows_the_reconstruction_resolution(tmp_path):
+    """One step above the engine's own default, not a fixed number: 4096 texels
+    wrapped around a res-512 reconstruction is atlas for detail that is not
+    there."""
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a female elf archer", "--res", "512",
+                *base_args(tmp_path, comfy, engine))
+    assert "--atlas 2048" in " ".join(json.loads(argv_path.read_text()))
+
+
+def test_a_prop_is_left_on_the_engine_defaults(tmp_path):
+    """A barrel has no face to starve, and a bigger atlas would only cost UV
+    packing time and file size."""
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a wooden barrel", "--res", "1024",
+                *base_args(tmp_path, comfy, engine))
+    argv = json.loads(argv_path.read_text())
+    assert "--atlas" not in argv
+    assert "--tex-res" not in argv
+
+
+def test_an_explicit_atlas_wins_over_the_character_default(tmp_path):
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a viking warrior", "--res", "1024", "--atlas", "1024",
+                "--tex-res", "512", *base_args(tmp_path, comfy, engine))
+    flat = " ".join(json.loads(argv_path.read_text()))
+    assert "--atlas 1024" in flat
+    assert "--tex-res 512" in flat
+
+
+def test_framing_object_opts_a_person_out_of_the_character_defaults(tmp_path):
+    """The escape hatch: a stone statue of a warrior is a prop, and the caller
+    is allowed to say so."""
+    engine, argv_path = fake_engine(tmp_path)
+    with StubComfy() as comfy:
+        run_cli("--prompt", "a viking warrior", "--res", "1024", "--framing", "object",
+                *base_args(tmp_path, comfy, engine))
+    argv = json.loads(argv_path.read_text())
+    assert "--atlas" not in argv
+    assert "--tex-res" not in argv

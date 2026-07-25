@@ -15,8 +15,36 @@ uvx pytest tests/ -q
 | `engine/` | the C++ engine, Vulkan only. [`PROVENANCE.md`](engine/PROVENANCE.md) says what upstream code was dropped |
 | `docker/` | the runtime image and its entrypoint checks |
 | `src/mesh.py` | the driver: validate, run, parse the GLB, emit |
+| `src/quality.py` | a diagnostic, off to the side: triangle quality for any GLB |
 | `bench/` | how every performance number here was produced |
 | `CHANGES.md` | engine changes on top of upstream, each with its measurement |
+
+## Is the mesh any good?
+
+`src/quality.py` answers it with numbers. A wireframe cannot: every triangle is
+drawn, front and back, so a clean mesh two surfaces deep looks like a heap of
+slivers, and an afternoon went into chasing a decimation bug that was not there.
+
+```bash
+python3 src/quality.py ../../out/*.glb
+```
+
+Measured over what this repo has produced, plus a hand-authored CC0 asset for
+scale:
+
+| | tris | median min angle | under 10 deg | radius ratio | degenerate |
+| --- | --- | --- | --- | --- | --- |
+| helmet, res 512 | 138520 | 37.5 deg | 1.2% | 1.42 | 0 |
+| warrior, decimated to 6k | 5970 | 33.7 deg | 0.9% | 1.54 | 0 |
+| knight, decimated to 4k | 3810 | 34.8 deg | 2.7% | 1.48 | 0 |
+| Poly Haven chair (authored) | 724 | 14.1 deg | 32.0% | 2.71 | 0 |
+
+An equilateral triangle is 60 degrees at a radius ratio of 1.0. So the
+quadric simplifier holds its shape quality down to 4k faces, and the
+hand-authored asset is four times worse by every measure, which is normal for
+triangulated quads and fine for rendering. Whatever is soft about these assets
+is the reconstruction's frequency limit and the texel budget, not the
+triangulation.
 
 ## Things that will bite you
 
