@@ -48,9 +48,9 @@ function environmentScene() {
       side: THREE.BackSide,
       depthWrite: false,
       uniforms: {
-        sky: { value: SKY.clone().multiplyScalar(0.9) },
-        horizon: { value: HORIZON.clone().multiplyScalar(1.8) },
-        ground: { value: GROUND.clone().multiplyScalar(0.5) },
+        sky: { value: SKY.clone().multiplyScalar(0.7) },
+        horizon: { value: HORIZON.clone().multiplyScalar(2.6) },
+        ground: { value: GROUND.clone().multiplyScalar(0.4) },
       },
       vertexShader: `
         varying vec3 vDir;
@@ -74,11 +74,16 @@ function environmentScene() {
   scene.add(dome)
 
   // Emissive planes stand in for area lights. Values above 1 are the point:
-  // PMREM renders into a half-float target, so a soft box at 8 puts a real
+  // PMREM renders into a half-float target, so a soft box at 13 puts a real
   // specular hit on the model instead of a pale smear. They are kept small as
   // well as bright, because a panel's contribution to diffuse light goes with
   // the solid angle it covers while its specular hit does not: small and hot
   // gives the highlight without the wash.
+  //
+  // The key could be pushed this hard only after the floor stopped reading the
+  // environment. While the floor was a standard material the two were coupled,
+  // and every increase that made car paint look wet also turned the ground into
+  // a grey sheet. Decoupling them is what bought the contrast back.
   const box = (w, h, colour, position) => {
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(w, h),
@@ -88,9 +93,9 @@ function environmentScene() {
     mesh.lookAt(0, 0, 0)
     scene.add(mesh)
   }
-  box(5, 5, [8.0, 7.9, 7.5], [5.5, 4.3, 0.7])   // key, side-right, 38 degrees up
-  box(5, 5, [0.9, 1.0, 1.3], [-5.0, 1.6, 2.5])  // fill, low front-left, cool
-  box(5, 3, [4.0, 4.2, 5.2], [-1.2, 3.2, -6.0]) // rim, behind, for the edge
+  box(4, 4, [13.0, 12.8, 12.2], [5.5, 4.3, 0.7]) // key, side-right, 38 degrees up
+  box(5, 5, [1.0, 1.1, 1.4], [-5.0, 1.6, 2.5])   // fill, low front-left, cool
+  box(5, 3, [5.4, 5.6, 6.8], [-1.2, 3.2, -6.0])  // rim, behind, for the edge
 
   return scene
 }
@@ -290,8 +295,8 @@ export function frameObject(object) {
  * uses. `fov` is read off the camera, so a narrow lens pulls back on its own.
  */
 export function placeCamera(camera, { radius, target }, distanceScale = 1.0) {
-  const distance = (radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.9 * distanceScale
-  camera.position.set(distance * 0.58, target.y + distance * 0.34, distance * 0.74)
+  const distance = (radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.62 * distanceScale
+  camera.position.set(distance * 0.58, target.y + distance * 0.30, distance * 0.74)
   camera.lookAt(target)
   return distance
 }
@@ -312,6 +317,28 @@ export function upgradeTextures(root, renderer) {
           value.anisotropy = anisotropy
           value.needsUpdate = true
         }
+      }
+    }
+  })
+  setEnvironmentIntensity(root, MODEL_ENV_INTENSITY)
+}
+
+// How hard the environment hits the model, as opposed to the floor. This is a
+// lighting decision and not a material one: the roughness and metalness maps
+// are left exactly as TRELLIS baked them, and turning this up is the same as
+// standing the asset in a brighter room. Worth knowing before reaching for it
+// again: on a generated sports car the baked map measures a mean roughness of
+// 0.72, where real car paint is 0.15 to 0.3, so a glossy subject arrives matte
+// and no amount of environment will make it wet. That is the file, not the
+// renderer, and the viewer's job is to show the file.
+export const MODEL_ENV_INTENSITY = 1.35
+
+export function setEnvironmentIntensity(root, intensity) {
+  root.traverse((node) => {
+    if (!node.isMesh) return
+    for (const material of [].concat(node.material || [])) {
+      if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
+        material.envMapIntensity = intensity
       }
     }
   })

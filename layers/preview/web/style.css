@@ -1,171 +1,371 @@
+/* The shell around the render. Flat surfaces, hairline rules, one accent.
+   Nothing here is downloaded: system fonts, and every icon is inline SVG. */
+
 :root {
-  --bg: #0c0d11;
-  --panel: #14161c;
-  --panel-2: #191c23;
-  --line: #24272f;
-  --line-soft: #1c1f26;
-  --text: #e3e7ee;
-  --dim: #838b9b;
-  --accent: #7fc8a9;
-  --warn: #e0b25a;
-  --error: #e5736b;
-  --radius: 8px;
+  color-scheme: dark;
+
+  --bg: #0a0b0d;
+  --surface: #0f1013;
+  --surface-2: #15171b;
+  --surface-3: #1c1f24;
+  --sunken: #08090b;
+
+  --line: #22252b;
+  --line-2: #2e323a;
+  --line-soft: #191c21;
+
+  --text: #e7e9ed;
+  --text-2: #99a0ab;
+  --text-3: #666d78;
+
+  --accent: #57cfa2;
+  --accent-soft: rgba(87, 207, 162, 0.11);
+  --accent-line: rgba(87, 207, 162, 0.32);
+  --warn: #dcb164;
+  --error: #e2726a;
+
+  /* Square. Every corner on the page, including the ones the browser rounds
+     for you on a checkbox or a slider thumb. */
+  --r-1: 0;
+  --r-2: 0;
+  --bar: 38px;
+  --sidebar: 264px;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 #app {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   height: 100%;
 }
+
+.spacer { flex: 1 1 auto; }
+
+.i {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- controls ----------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-2); color: var(--text); }
+.btn:active:not(:disabled) { background: var(--sunken); }
+.btn:disabled { color: var(--text-3); cursor: default; }
+
+.btn-quiet {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: transparent;
+  border-color: transparent;
+}
+
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 208px;
+  height: 26px;
+  padding: 0 8px;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+}
+.field:focus-within { border-color: var(--accent-line); }
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: none;
+  border: 0;
+  outline: none;
+}
+.field input::placeholder { color: var(--text-3); }
+.field input::-webkit-search-cancel-button { filter: grayscale(1) opacity(0.5); }
+
+.seg {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+}
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.seg button + button { box-shadow: inset 1px 0 0 var(--line); }
+.seg button:hover { color: var(--text-2); }
+.seg button[aria-pressed="true"] { color: var(--text); background: var(--surface-3); }
+.seg button[aria-pressed="true"] .i { color: var(--accent); }
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+}
+.toggle:hover { color: var(--text); }
+.toggle:has(input:checked) { color: var(--text); }
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  flex: none;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  cursor: pointer;
+}
+input[type="checkbox"]:hover { border-color: #3b4049; }
+input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  /* An inline data URI, not a request: the page still loads with no network. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.2 4.8 8.5 9.4 3.6' fill='none' stroke='%230a0b0d' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+}
+
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 84px;
+  height: 14px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--line-2);
+  border-radius: 0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 0;
+  background: var(--text-2);
+}
+input[type="range"]:hover::-webkit-slider-thumb { background: var(--accent); }
+input[type="range"]::-moz-range-track { height: 2px; background: var(--line-2); border-radius: 0; }
+input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--text-2);
+}
+input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
+
+.rule { width: 1px; height: 16px; background: var(--line-2); }
 
 /* ---- top bar ------------------------------------------------------------ */
 
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
-  background: var(--panel);
+  gap: 10px;
+  height: var(--bar);
+  padding: 0 10px;
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
 }
 
-.brand { font-weight: 600; letter-spacing: 0.01em; }
-.dim { color: var(--dim); font-weight: 400; }
-.spacer { flex: 1 1 auto; }
-
-.topbar input[type="search"] { width: 190px; }
-.topbar .count { color: var(--dim); font-variant-numeric: tabular-nums; }
-
-.views { display: inline-flex; }
-.views button {
-  border-radius: 0;
-  color: var(--dim);
-  padding: 4px 12px;
-}
-.views button:first-child { border-radius: 6px 0 0 6px; }
-.views button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
-.views button[aria-pressed="true"] {
-  color: var(--text);
-  background: #232833;
-  border-color: #3a4150;
-  position: relative;
-}
-
-select, button, input[type="range"], input[type="search"] {
+.brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  height: 26px;
+  padding: 0 8px 0 6px;
   font: inherit;
   color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 4px 9px;
-}
-
-button { cursor: pointer; }
-button:hover:not(:disabled) { border-color: #3a4150; background: #21252e; }
-button:active:not(:disabled) { transform: translateY(1px); }
-button:disabled { color: var(--dim); cursor: default; }
-
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-input[type="range"] { padding: 0; width: 96px; accent-color: var(--accent); }
-
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  user-select: none;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
   cursor: pointer;
+}
+.brand:hover { background: var(--surface-2); border-color: var(--line); }
+.brand .i { align-self: center; color: var(--accent); stroke-width: 1.15; }
+.brand-name { font-weight: 650; font-size: 13px; letter-spacing: 0.01em; }
+.brand-sub { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; color: var(--text-3); }
+
+/* The file on the turntable, named where the eye starts rather than in the
+   corner: the status line already carries the loader's own report of it. */
+.topbar .rule { height: 18px; }
+/* Nothing loaded yet: no name, so no divider either. */
+.topbar .rule:has(+ .current:empty) { display: none; }
+.topbar .current {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.toggle input { accent-color: var(--accent); }
 
-output[role="status"] { color: var(--dim); }
-output[data-kind="ok"] { color: var(--accent); }
-output[data-kind="warn"] { color: var(--warn); }
-output[data-kind="error"] { color: var(--error); }
-
-/* ---- layout ------------------------------------------------------------- */
+/* ---- body --------------------------------------------------------------- */
 
 .body {
   display: grid;
-  grid-template-columns: 292px 1fr;
+  grid-template-columns: var(--sidebar) 1fr;
   min-height: 0;
 }
+
+.main {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+.main > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The sidebar never leaves. Only this pane swaps. */
+#app[data-view="gallery"] .viewer { display: none; }
+#app[data-view="single"] .sheet { display: none; }
 
 /* ---- sidebar ------------------------------------------------------------ */
 
 .sidebar {
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  gap: 8px;
-  padding: 10px;
+  /* head, note, list, motion. The note sits under the head rather than under
+     the list, so "No models yet" is not stranded at the bottom of the panel. */
+  grid-template-rows: auto auto 1fr auto;
   min-height: 0;
-  background: var(--panel);
+  background: var(--surface);
   border-right: 1px solid var(--line);
 }
 
-.sidebar-head {
+.pane-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  height: 30px;
+  padding: 0 8px 0 12px;
 }
-.sidebar-head h2 {
+.pane-head h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: var(--text-3);
 }
-.sidebar-head .count { color: var(--dim); font-weight: 400; text-transform: none; }
-
-.sidebar input[type="search"] { width: 100%; }
+.pane-head .count {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
 
 .model-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  min-height: 0;
+  padding: 0 0 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  min-height: 0;
-  padding-right: 2px;
   scrollbar-width: thin;
-  scrollbar-color: #2f333d transparent;
+  scrollbar-color: #2b2f36 transparent;
 }
-.model-list::-webkit-scrollbar { width: 9px; }
+.model-list::-webkit-scrollbar { width: 10px; }
 .model-list::-webkit-scrollbar-thumb {
-  background: #2f333d;
-  border-radius: 6px;
-  border: 2px solid var(--panel);
+  background: #2b2f36;
+  border-radius: 0;
+  border: 3px solid var(--surface);
 }
 
+/* Rows are ruled with the same hairline that draws the sidebar's own edge, so
+   the list and the panel it sits in read as one object rather than a stack of
+   floating chips. The accent bar is what makes the selected row obvious. */
 .card {
   display: grid;
-  grid-template-columns: 54px 1fr;
-  gap: 10px;
+  grid-template-columns: 34px 1fr;
+  gap: 9px;
   align-items: center;
   width: 100%;
-  padding: 7px;
+  padding: 6px 10px;
+  font: inherit;
   text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--r-1);
+  cursor: pointer;
 }
-.card:hover { background: var(--panel-2); border-color: var(--line-soft); }
+.card:hover { background: var(--surface-2); }
 .card.selected {
-  background: var(--panel-2);
-  border-color: #33526a;
+  background: var(--accent-soft);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -173,12 +373,12 @@ output[data-kind="error"] { color: var(--error); }
   position: relative;
   display: grid;
   place-items: center;
-  width: 54px;
-  height: 54px;
+  width: 34px;
+  height: 34px;
   overflow: hidden;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: #0a0b0e;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: 0;
 }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb img:not([src]) { display: none; }
@@ -189,7 +389,7 @@ output[data-kind="error"] { color: var(--error); }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 20%, #1e222b 50%, transparent 80%);
+  background: linear-gradient(100deg, transparent 20%, #1b1e24 50%, transparent 80%);
   background-size: 240% 100%;
   animation: sweep 1.6s ease-in-out infinite;
 }
@@ -203,132 +403,126 @@ output[data-kind="error"] { color: var(--error); }
 
 .thumb-empty::after {
   content: "GLB";
-  color: var(--dim);
-  font-size: 10px;
+  color: var(--text-3);
+  font-size: 9px;
   letter-spacing: 0.08em;
 }
 
-.meta { display: grid; gap: 2px; min-width: 0; }
+.meta { display: grid; gap: 1px; min-width: 0; }
 .meta .name {
+  font-size: 12.5px;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.meta .sub { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+.meta .sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-.sidebar-note { margin: 0; color: var(--dim); }
-.sidebar-note[hidden] { display: none; }
+.note {
+  margin: 0;
+  padding: 2px 12px 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
 
 /* ---- motion ------------------------------------------------------------- */
 
-.motion {
-  border-top: 1px solid var(--line);
-  padding-top: 9px;
-  display: grid;
-  gap: 7px;
-}
-.motion[hidden] { display: none; }
-
-.motion-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.motion-head h2 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.clip-list { display: grid; gap: 4px; }
+.motion { border-top: 1px solid var(--line); }
+.clip-list { display: grid; padding: 0 0 8px; }
 .clip {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
   text-align: left;
-  padding: 6px 10px;
-  background: transparent;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  color: var(--dim);
   text-transform: capitalize;
+  color: var(--text-2);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--r-1);
+  cursor: pointer;
 }
-.clip:hover { background: var(--panel-2); }
+.clip:hover { background: var(--surface-2); color: var(--text); }
 .clip.selected {
   color: var(--text);
-  background: var(--panel-2);
-  border-color: #33526a;
+  background: var(--accent-soft);
   box-shadow: inset 2px 0 0 var(--accent);
 }
+
+#play-pause .i-play { display: none; }
+#play-pause[aria-pressed="false"] .i-pause { display: none; }
+#play-pause[aria-pressed="false"] .i-play { display: block; }
 
 /* ---- viewer ------------------------------------------------------------- */
 
 .viewer {
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  min-width: 0;
-  min-height: 0;
+  grid-template-rows: auto 1fr;
 }
 
-.tabs {
+.viewer-bar {
   display: flex;
-  gap: 4px;
-  padding: 6px 10px 0;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--bar);
+  padding: 0 10px 0 0;
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  flex-wrap: wrap;
 }
+
+.tabs { display: flex; align-self: stretch; }
 .tabs button {
-  background: transparent;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  padding: 5px 14px;
-  color: var(--dim);
-}
-.tabs button[aria-selected="true"] {
-  color: var(--text);
-  background: var(--bg);
-  border-color: var(--line);
+  height: 100%;
+  min-height: var(--bar);
+  padding: 0 13px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-3);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  padding-bottom: 6px;
+  cursor: pointer;
 }
+.tabs button:hover:not(:disabled) { color: var(--text-2); }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tabs button:disabled { color: #454b54; cursor: default; }
+
+/* Render controls belong in the frame, not floating over the render. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-left: auto;
+  padding: 5px 0;
+  flex-wrap: wrap;
+}
+/* Wireframe and grid mean nothing while the source PNG is on screen. */
+#app[data-mode="image"] .toolbar { display: none; }
 
 .panel { position: relative; min-height: 0; min-width: 0; }
-.panel[hidden] { display: none; }
 
 .stage {
   position: relative;
   height: 100%;
   min-height: 0;
-  background: radial-gradient(circle at 50% 38%, #1b1f28 0%, var(--bg) 68%);
+  background: radial-gradient(circle at 50% 38%, #1a1e26 0%, var(--bg) 68%);
 }
 .stage canvas { display: block; width: 100%; height: 100%; }
 
-/* Render controls belong over the render, not in a bar at the top of the page
-   next to the file list. Floating them keeps the topbar for finding a model. */
-.stage-controls {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid #2b303b;
-  background: rgba(16, 18, 23, 0.82);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-  max-width: calc(100% - 24px);
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.stage-controls button { border-radius: 999px; }
-
 .image-panel {
   display: grid;
-  grid-template-rows: 1fr auto;
+  /* minmax(0, 1fr), not 1fr: an auto minimum lets a 1024px PNG size the row and
+     pushes the caption under the fold. */
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 10px;
   place-items: center;
   padding: 16px;
@@ -338,103 +532,157 @@ output[data-kind="error"] { color: var(--error); }
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: var(--radius);
+  background: var(--sunken);
   border: 1px solid var(--line);
-  background: #0a0b0e;
+  border-radius: var(--r-2);
 }
-.image-panel .note { margin: 0; color: var(--dim); word-break: break-all; }
+.image-panel .note { padding: 0; word-break: break-all; }
+
+/* ---- gallery ------------------------------------------------------------ */
+
+.sheet {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: #2b2f36 transparent;
+}
+.sheet::-webkit-scrollbar { width: 10px; }
+.sheet::-webkit-scrollbar-thumb {
+  background: #2b2f36;
+  border-radius: 0;
+  border: 3px solid var(--bg);
+}
+
+.sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+  align-content: start;
+  gap: 12px;
+}
+
+/* The same hairline as the list rows and the sidebar edge, closed into a box.
+   Every tile looks the same at rest, including the one that is loaded: the
+   sheet is for comparing assets, and a stuck highlight on one of them reads as
+   a state rather than as a fact about the model. Emphasis comes from the
+   pointer, as a solid accent bar across the top edge. */
+.tile {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  background: transparent;
+  z-index: 1;
+}
+.tile:hover { background: var(--surface-2); border-color: var(--line-2); }
+.tile:hover::before,
+.tile:focus-visible::before { background: var(--accent); }
+
+.tile .thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.tile .thumb img { object-fit: contain; }
+.tile .meta { padding: 7px 9px 8px; gap: 2px; }
+.tile .meta .name { font-size: 12.5px; }
+
+.sheet-note { padding: 10px 2px; }
+
+/* ---- status bar --------------------------------------------------------- */
 
 .statusbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 7px 14px;
-  background: var(--panel);
+  gap: 14px;
+  min-height: 28px;
+  padding: 3px 12px;
+  font-size: 11.5px;
+  background: var(--surface);
   border-top: 1px solid var(--line);
   flex-wrap: wrap;
-}
-.statusbar .current {
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 dl#stats {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
   margin: 0;
   flex-wrap: wrap;
-  color: var(--dim);
+}
+dl#stats dt {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 dl#stats dd {
   margin: 0 12px 0 0;
-  color: var(--text);
+  color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- gallery ------------------------------------------------------------ */
-
-/* Same cards, same selection, wider. Everything that only makes sense beside a
-   turntable steps out of the way. */
-#app[data-view="gallery"] .body { grid-template-columns: 1fr; }
-#app[data-view="gallery"] .viewer,
-#app[data-view="gallery"] .sidebar-head,
-#app[data-view="gallery"] .motion { display: none; }
-
-#app[data-view="gallery"] .sidebar {
-  grid-template-rows: 1fr auto;
-  border-right: none;
-  background: var(--bg);
-  padding: 16px;
+/* A long message (a missing directory, a loader error) wraps onto a second line
+   and grows the bar rather than being cut off at the window edge. */
+output[role="status"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--text-2);
 }
-
-#app[data-view="gallery"] .model-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  align-content: start;
-  gap: 16px;
+output[role="status"]::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  flex: none;
+  background: currentColor;
 }
-
-#app[data-view="gallery"] .card {
-  grid-template-columns: 1fr;
-  /* auto, not 1fr: the thumbnail sets its own height from its aspect ratio, and
-     a 1fr row takes the whole card and pushes the name out of the bottom. */
-  grid-template-rows: auto auto;
-  align-items: stretch;
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
-  background: var(--panel);
-  border-color: var(--line);
-  transition: border-color 120ms ease, transform 120ms ease;
-}
-#app[data-view="gallery"] .card:hover { transform: translateY(-2px); border-color: #3d4553; }
-#app[data-view="gallery"] .card.selected { box-shadow: none; border-color: var(--accent); }
-
-#app[data-view="gallery"] .thumb {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1 / 1;
-  border: none;
-  border-radius: 0;
-  border-bottom: 1px solid var(--line);
-}
-#app[data-view="gallery"] .thumb img { object-fit: contain; }
-#app[data-view="gallery"] .meta { padding: 9px 11px 10px; }
+output[data-kind="ok"] { color: var(--accent); }
+output[data-kind="warn"] { color: var(--warn); }
+output[data-kind="error"] { color: var(--error); }
+output[data-kind="empty"] { color: var(--text-3); }
 
 /* ---- narrow ------------------------------------------------------------- */
 
-@media (max-width: 860px) {
-  .brand { display: none; }
-  .topbar input[type="search"] { width: 130px; }
-  .body { grid-template-columns: 1fr; grid-template-rows: 180px 1fr; }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
-  .model-list { flex-direction: row; overflow-x: auto; }
-  .card { width: 220px; flex: 0 0 auto; }
+@media (max-width: 1160px) {
+  :root { --sidebar: 226px; }
+  .field { width: 158px; }
+}
 
-  #app[data-view="gallery"] .body { grid-template-rows: 1fr; }
-  #app[data-view="gallery"] .model-list { flex-direction: column; overflow-x: hidden; }
-  #app[data-view="gallery"] .card { width: auto; }
+@media (max-width: 940px) {
+  .toolbar { gap: 9px; }
+  input[type="range"] { width: 64px; }
+  .statusbar .current { max-width: 100%; }
+}
+
+/* Narrower than this the sidebar still stays: losing the list is what made the
+   two layouts feel like two pages. It gets thinner, the top bar wraps. */
+@media (max-width: 820px) {
+  :root { --sidebar: 194px; }
+  .topbar { height: auto; padding: 5px 8px; flex-wrap: wrap; }
+  .field { width: 132px; }
+  .brand-sub { display: none; }
+  .sheet-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .card { grid-template-columns: 1fr; }
+  .card .thumb { display: none; }
 }

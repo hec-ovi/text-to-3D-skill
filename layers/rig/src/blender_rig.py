@@ -547,6 +547,27 @@ def bind(mesh, rig):
         raise RuntimeError(f"bone heat weighting failed: {exc}")
     if not any(m.type == "ARMATURE" for m in mesh.modifiers):
         raise RuntimeError("bone heat weighting produced no armature modifier")
+
+    # ARMATURE_AUTO does two jobs: it solves the bone heat weights, which is why
+    # it is used, and it parents the mesh object to the armature, which is not
+    # wanted. glTF ignores a skinned mesh node's own transform by specification,
+    # so a skinned mesh sitting under a parent is a trap: the Khronos validator
+    # warns "parent transforms will not affect a skinned mesh", and anyone who
+    # drops the asset under a transformed node silently gets nothing.
+    #
+    # The deformation is driven by the armature *modifier*, not by the
+    # parenting, so clearing the parent keeps the rig working and exports the
+    # mesh as a root node. Keep the world transform while doing it, in case the
+    # armature was not at the origin.
+    bpy.ops.object.select_all(action="DESELECT")
+    mesh.select_set(True)
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
+    if mesh.parent is not None:
+        raise RuntimeError("the skinned mesh is still parented and will export with a warning")
+    if not any(m.type == "ARMATURE" and m.object == rig for m in mesh.modifiers):
+        raise RuntimeError("clearing the parent lost the armature modifier")
+
     weighted = sum(1 for v in mesh.data.vertices if v.groups)
     if weighted < len(mesh.data.vertices) * 0.5:
         raise RuntimeError(

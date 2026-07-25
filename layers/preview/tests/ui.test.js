@@ -21,9 +21,15 @@ function mount(options = {}) {
   return mountUi(document.getElementById('app'), options)
 }
 
+// The sidebar list is the page's one listbox, so it is the only set of options.
 const cards = () => screen.getAllByRole('option')
 const cardNames = () => cards().map((c) => c.querySelector('.name').textContent)
 const selectedCard = () => cards().find((c) => c.getAttribute('aria-selected') === 'true')
+
+// Gallery tiles are plain buttons carrying aria-current: a second listbox over
+// the same models would be a second selection to keep in step with the first.
+const tiles = () => Array.from(document.querySelectorAll('#sheet-grid .tile'))
+const tileNames = () => tiles().map((t) => t.querySelector('.name').textContent)
 
 const BELL = model('bell-r512.glb', { triangles: 140654, byteSize: 4528192 })
 const HELMET = model('helmet-r512.glb', {
@@ -133,7 +139,9 @@ describe('filtering', () => {
     await user.type(screen.getByRole('searchbox', { name: /filter models/i }), 'zzz')
 
     expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(tiles()).toHaveLength(0)
     expect(document.querySelector('#sidebar-note').textContent).toMatch(/Nothing matches "zzz"/)
+    expect(document.querySelector('#sheet-note').textContent).toMatch(/Nothing matches "zzz"/)
   })
 })
 
@@ -149,7 +157,9 @@ describe('empty and error states', () => {
     expect(status.textContent).toMatch(/pipeline/)
     expect(status.dataset.kind).toBe('empty')
     expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(tiles()).toHaveLength(0)
     expect(document.querySelector('#sidebar-note').textContent).toBe('No models yet.')
+    expect(document.querySelector('#sheet-note').textContent).toBe('No models yet.')
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -232,11 +242,18 @@ describe('user interaction', () => {
     expect(toggle).toHaveProperty('checked', true)
 
     await user.click(toggle)
-    expect(onRotationChange).toHaveBeenLastCalledWith({ enabled: false, speed: 1.5 })
+    expect(onRotationChange).toHaveBeenLastCalledWith({ enabled: false, speed: 0.6 })
     expect(ui.rotation.enabled).toBe(false)
 
     await user.click(toggle)
-    expect(onRotationChange).toHaveBeenLastCalledWith({ enabled: true, speed: 1.5 })
+    expect(onRotationChange).toHaveBeenLastCalledWith({ enabled: true, speed: 0.6 })
+  })
+
+  test('the turntable opens slow enough to look at', () => {
+    // main.js reads this at startup and pushes it into the viewer, so the
+    // slider's own default is the only place the opening speed is set.
+    const ui = mount()
+    expect(ui.rotation).toEqual({ enabled: true, speed: 0.6 })
   })
 
   test('the speed slider reports a new rotation speed', async () => {
@@ -316,6 +333,9 @@ describe('model and image tabs', () => {
     expect(img.getAttribute('src')).toBe('/images/bell.png')
     expect(document.querySelector('#source-note').textContent).toBe('bell.png (1024x1024, 1.1 MB)')
     expect(document.querySelector('#panel-model').hidden).toBe(true)
+    // Wireframe and grid mean nothing over a PNG, and the stylesheet drops the
+    // render controls off this attribute.
+    expect(document.getElementById('app').dataset.mode).toBe('image')
 
     // Coming back has to tell the renderer, or the canvas keeps the size it had
     // while it was hidden.
@@ -467,7 +487,7 @@ describe('render controls', () => {
 })
 
 describe('gallery', () => {
-  test('the page opens on the turntable and the toggle swaps the layout', async () => {
+  test('the page opens on the gallery and the toggle swaps the layout both ways', async () => {
     const user = userEvent.setup()
     serveModels([BELL, HELMET])
     const onLayoutChange = vi.fn()
@@ -475,34 +495,111 @@ describe('gallery', () => {
     await ui.refresh()
 
     const app = document.getElementById('app')
-    expect(app.dataset.view).toBe('single')
-    expect(screen.getByRole('button', { name: 'Single' }).getAttribute('aria-pressed')).toBe('true')
-
-    await user.click(screen.getByRole('button', { name: 'Gallery' }))
     expect(app.dataset.view).toBe('gallery')
     expect(ui.view).toBe('gallery')
     expect(screen.getByRole('button', { name: 'Gallery' }).getAttribute('aria-pressed')).toBe('true')
-    // The canvas was display:none and comes back at a new size.
-    expect(onLayoutChange).toHaveBeenCalled()
+    expect(tileNames()).toEqual(['Bell', 'Helmet'])
 
-    // One list, two layouts: the cards are the same elements either way.
-    expect(cardNames()).toEqual(['Bell', 'Helmet'])
+    await user.click(screen.getByRole('button', { name: 'Single' }))
+    expect(app.dataset.view).toBe('single')
+    expect(ui.view).toBe('single')
+    expect(screen.getByRole('button', { name: 'Single' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Gallery' }).getAttribute('aria-pressed')).toBe('false')
+    // The canvas was display:none and comes back at a new size.
+    expect(onLayoutChange).toHaveBeenCalledTimes(1)
+    // Only the middle pane swapped, so the sheet is empty rather than hidden.
+    expect(tiles()).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Gallery' }))
+    expect(ui.view).toBe('gallery')
+    expect(tileNames()).toEqual(['Bell', 'Helmet'])
   })
 
-  test('clicking a card in the gallery opens it on the turntable', async () => {
+  test('the model list is there in both layouts, and it is the only listbox', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(screen.getAllByRole('listbox')).toHaveLength(1)
+    expect(cardNames()).toEqual(['Bell', 'Helmet'])
+    // A tile is a button carrying aria-current, so the gallery does not add a
+    // second set of options for the same models.
+    expect(cards()).toHaveLength(2)
+    expect(tiles()[0].getAttribute('aria-current')).toBe('true')
+    expect(tiles()[1].getAttribute('aria-current')).toBe('false')
+
+    await user.click(screen.getByRole('button', { name: 'Single' }))
+
+    expect(screen.getByRole('listbox', { name: /models/i })).toBeTruthy()
+    expect(cardNames()).toEqual(['Bell', 'Helmet'])
+    expect(selectedCard().querySelector('.name').textContent).toBe('Bell')
+  })
+
+  test('an explicit view option still beats the default', async () => {
+    serveModels([BELL])
+    const ui = mount({ view: 'single' })
+    await ui.refresh()
+
+    expect(ui.view).toBe('single')
+    expect(document.getElementById('app').dataset.view).toBe('single')
+    expect(screen.getByRole('button', { name: 'Single' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  test('the brand goes back to the gallery', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const ui = mount()
+    await ui.refresh()
+    await user.click(screen.getByRole('button', { name: 'Single' }))
+    expect(ui.view).toBe('single')
+
+    await user.click(screen.getByRole('button', { name: /3d skill/i }))
+
+    expect(ui.view).toBe('gallery')
+    expect(document.getElementById('app').dataset.view).toBe('gallery')
+    expect(tileNames()).toEqual(['Bell', 'Helmet'])
+  })
+
+  test('clicking a tile in the gallery opens it on the turntable', async () => {
     const user = userEvent.setup()
     serveModels([BELL, HELMET])
     const onSelect = vi.fn()
     const ui = mount({ onSelect })
     await ui.refresh()
-    await user.click(screen.getByRole('button', { name: 'Gallery' }))
+    onSelect.mockClear()
 
-    await user.click(screen.getByRole('option', { name: /helmet/i }))
+    // The tile is a button; the sidebar row for the same model is the option.
+    await user.click(screen.getByRole('button', { name: /helmet/i }))
 
     expect(ui.view).toBe('single')
     expect(ui.selected.name).toBe('helmet-r512.glb')
     expect(onSelect).toHaveBeenLastCalledWith(
       expect.objectContaining({ name: 'helmet-r512.glb' }), { fromUser: true })
+  })
+
+  test('picking a model in the sidebar opens the turntable too', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    await user.click(screen.getByRole('option', { name: /helmet/i }))
+
+    expect(ui.view).toBe('single')
+    expect(ui.selected.name).toBe('helmet-r512.glb')
+  })
+
+  test('the filter narrows the sheet as well as the list', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    await user.type(screen.getByRole('searchbox', { name: /filter models/i }), 'helm')
+
+    expect(tileNames()).toEqual(['Helmet'])
+    expect(cardNames()).toEqual(['Helmet'])
   })
 
   test('a card shows the GLB rendered, not the picture it was made from', async () => {

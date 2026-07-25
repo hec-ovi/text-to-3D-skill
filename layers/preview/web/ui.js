@@ -119,69 +119,111 @@ export function filterModels(models, query) {
   return models.filter((m) => m.name.toLowerCase().includes(needle))
 }
 
-// One card list, two layouts. The gallery is the same `#model-list` widened
-// into a grid rather than a second copy of every card: two lists would mean two
-// selection states to keep in step, and the one that is off screen is always
-// the one that goes stale.
+// Drawn here rather than downloaded: the page has to work with no network, and
+// an icon font would be a second request and a second thing to keep in sync.
+// Every one is decorative, so every one is aria-hidden and the label beside it
+// is what a screen reader reads.
+const ICON = {
+  cube: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1.8 13.6 5v6L8 14.2 2.4 11V5z"/><path d="M2.4 5 8 8.2 13.6 5M8 8.2v6"/></svg>`,
+  search: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7.1" cy="7.1" r="4.1"/><path d="m10.2 10.2 3.2 3.2"/></svg>`,
+  refresh: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13.1 8a5.1 5.1 0 1 1-1.5-3.6"/><path d="M13.4 2.7v3h-3"/></svg>`,
+  grid: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="2.4" y="2.4" width="4.9" height="4.9"/><rect x="8.7" y="2.4" width="4.9" height="4.9"/><rect x="2.4" y="8.7" width="4.9" height="4.9"/><rect x="8.7" y="8.7" width="4.9" height="4.9"/></svg>`,
+  frame: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="2.3" y="2.9" width="11.4" height="10.2"/><circle cx="8" cy="8" r="2.5"/></svg>`,
+  recenter: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.7 5.9V2.7h3.2M13.3 5.9V2.7h-3.2M2.7 10.1v3.2h3.2M13.3 10.1v3.2h-3.2"/><circle cx="8" cy="8" r="2.1"/></svg>`,
+  play: `<svg class="i i-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 3.6 12 8l-6.4 4.4z" fill="currentColor" stroke="none"/></svg>`,
+  pause: `<svg class="i i-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="4.7" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/><rect x="9" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/></svg>`,
+}
+
+// One shell, three regions that never move: a bar of global actions, the model
+// list, and a status line. Only the middle pane swaps between the contact sheet
+// and the turntable, so the list is on screen whatever you are doing and the
+// two layouts read as one page rather than two.
+//
+// The list is the only `listbox` on the page. Sheet tiles are plain buttons
+// carrying `aria-current`, because a second listbox over the same models would
+// be a second selection for a screen reader to reconcile with the first.
 const LAYOUT = `
 <header class="topbar">
-  <span class="brand">text-to-3D<span class="dim"> preview</span></span>
-  <div class="views" role="group" aria-label="Layout">
-    <button id="view-gallery" type="button" aria-pressed="false">Gallery</button>
-    <button id="view-single" type="button" aria-pressed="true">Single</button>
+  <button id="brand" class="brand" type="button" title="Back to the gallery">
+    ${ICON.cube}<span class="brand-name">3D</span> <span class="brand-sub">SKILL</span>
+  </button>
+
+  <div class="seg" role="group" aria-label="Layout">
+    <button id="view-gallery" type="button" aria-pressed="true">${ICON.grid}Gallery</button>
+    <button id="view-single" type="button" aria-pressed="false">${ICON.frame}Single</button>
   </div>
-  <input id="filter" type="search" placeholder="Filter by name" aria-label="Filter models">
-  <span class="count" id="model-count"></span>
-  <button id="refresh" type="button">Refresh</button>
+
+  <span class="rule"></span>
+  <span class="current" id="current-name"></span>
   <span class="spacer"></span>
-  <output id="status" role="status">Loading…</output>
+
+  <div class="field">
+    ${ICON.search}
+    <input id="filter" type="search" placeholder="Filter models" aria-label="Filter models">
+  </div>
+  <button id="refresh" class="btn" type="button">${ICON.refresh}Refresh</button>
 </header>
 
 <div class="body">
   <aside class="sidebar">
-    <div class="sidebar-head"><h2>Models</h2></div>
+    <div class="pane-head">
+      <h2>Models</h2>
+      <span class="count" id="model-count"></span>
+    </div>
+    <p class="note" id="sidebar-note" hidden></p>
     <div class="model-list" id="model-list" role="listbox" aria-label="Models"></div>
-    <p class="sidebar-note" id="sidebar-note" hidden></p>
 
     <section class="motion" id="motion" hidden>
-      <div class="motion-head">
+      <div class="pane-head">
         <h2>Motion</h2>
-        <button id="play-pause" type="button" aria-pressed="true">Pause</button>
+        <button id="play-pause" class="btn btn-quiet" type="button" aria-pressed="true">
+          ${ICON.pause}${ICON.play}<span class="play-label">Pause</span>
+        </button>
       </div>
       <div class="clip-list" id="clip-list" role="radiogroup" aria-label="Clips"></div>
     </section>
   </aside>
 
-  <main class="viewer">
-    <div class="tabs" role="tablist" aria-label="Preview mode">
-      <button id="tab-model" type="button" role="tab" aria-selected="true">Model</button>
-      <button id="tab-image" type="button" role="tab" aria-selected="false">Image</button>
-    </div>
+  <main class="main">
+    <section class="sheet" aria-label="Model gallery">
+      <div class="sheet-grid" id="sheet-grid"></div>
+      <p class="note sheet-note" id="sheet-note" hidden></p>
+    </section>
 
-    <div class="panel" id="panel-model" role="tabpanel" aria-label="Model">
-      <div class="stage" id="stage"></div>
-      <div class="stage-controls">
-        <label class="toggle"><input id="autorotate" type="checkbox" checked> Auto rotate</label>
-        <input id="speed" type="range" min="0" max="6" step="0.5" value="1.5" aria-label="Rotation speed">
-        <label class="toggle"><input id="wireframe" type="checkbox"> Wireframe</label>
-        <label class="toggle"><input id="grid" type="checkbox"> Grid</label>
-        <label class="toggle"><input id="quality" type="checkbox" checked> Quality</label>
-        <button id="reset-view" type="button">Reset view</button>
+    <section class="viewer">
+      <div class="viewer-bar">
+        <div class="tabs" role="tablist" aria-label="Preview mode">
+          <button id="tab-model" type="button" role="tab" aria-selected="true">Model</button>
+          <button id="tab-image" type="button" role="tab" aria-selected="false">Image</button>
+        </div>
+        <div class="toolbar" id="render-controls">
+          <label class="toggle"><input id="autorotate" type="checkbox" checked><span>Auto rotate</span></label>
+          <input id="speed" type="range" min="0" max="6" step="0.2" value="0.6" aria-label="Rotation speed">
+          <span class="rule"></span>
+          <label class="toggle"><input id="wireframe" type="checkbox"><span>Wireframe</span></label>
+          <label class="toggle"><input id="grid" type="checkbox"><span>Grid</span></label>
+          <label class="toggle"><input id="quality" type="checkbox" checked><span>Quality</span></label>
+          <button id="reset-view" class="btn" type="button">${ICON.recenter}Reset view</button>
+        </div>
       </div>
-    </div>
 
-    <div class="panel image-panel" id="panel-image" role="tabpanel" aria-label="Source image" hidden>
-      <img id="source-image" alt="" hidden>
-      <p class="note" id="source-note">No source image next to this model.</p>
-    </div>
+      <div class="panel" id="panel-model" role="tabpanel" aria-label="Model">
+        <div class="stage" id="stage"></div>
+      </div>
 
-    <footer class="statusbar">
-      <span class="current" id="current-name"></span>
-      <span class="spacer"></span>
-      <dl id="stats"></dl>
-    </footer>
+      <div class="panel image-panel" id="panel-image" role="tabpanel" aria-label="Source image" hidden>
+        <img id="source-image" alt="" hidden>
+        <p class="note" id="source-note">No source image next to this model.</p>
+      </div>
+    </section>
   </main>
 </div>
+
+<footer class="statusbar">
+  <dl id="stats"></dl>
+  <span class="spacer"></span>
+  <output id="status" role="status">Loading…</output>
+</footer>
 `
 
 /**
@@ -204,7 +246,9 @@ export function mountUi(root, options = {}) {
     onThumbnail = null,
     fetchImpl = globalThis.fetch,
     search = '',
-    view = 'single',
+    // The page opens on the contact sheet: the usual question after a batch is
+    // "what came out", not "show me this one file".
+    view = 'gallery',
     history = globalThis.history,
   } = options
 
@@ -216,6 +260,7 @@ export function mountUi(root, options = {}) {
     wireframe: root.querySelector('#wireframe'),
     grid: root.querySelector('#grid'),
     quality: root.querySelector('#quality'),
+    brand: root.querySelector('#brand'),
     viewGallery: root.querySelector('#view-gallery'),
     viewSingle: root.querySelector('#view-single'),
     reset: root.querySelector('#reset-view'),
@@ -223,6 +268,8 @@ export function mountUi(root, options = {}) {
     filter: root.querySelector('#filter'),
     list: root.querySelector('#model-list'),
     note: root.querySelector('#sidebar-note'),
+    sheet: root.querySelector('#sheet-grid'),
+    sheetNote: root.querySelector('#sheet-note'),
     count: root.querySelector('#model-count'),
     tabModel: root.querySelector('#tab-model'),
     tabImage: root.querySelector('#tab-image'),
@@ -236,6 +283,7 @@ export function mountUi(root, options = {}) {
     motion: root.querySelector('#motion'),
     clipList: root.querySelector('#clip-list'),
     playPause: root.querySelector('#play-pause'),
+    playLabel: root.querySelector('#play-pause .play-label'),
   }
 
   let models = []
@@ -245,6 +293,9 @@ export function mountUi(root, options = {}) {
   let clip = null
   let playing = true
   root.dataset.view = layout
+  root.dataset.mode = mode
+  el.viewGallery.setAttribute('aria-pressed', String(layout === 'gallery'))
+  el.viewSingle.setAttribute('aria-pressed', String(layout === 'single'))
 
   function setStatus(text, kind = 'info') {
     el.status.textContent = text
@@ -290,6 +341,8 @@ export function mountUi(root, options = {}) {
       button.className = 'clip'
       button.setAttribute('role', 'radio')
       button.setAttribute('aria-checked', String(name === clip))
+      // Nothing but the clip name: this is the element a screen reader reads
+      // out, and an icon or a duration in here would be read with it.
       button.textContent = name
       button.addEventListener('click', () => selectClip(name))
       el.clipList.append(button)
@@ -313,7 +366,9 @@ export function mountUi(root, options = {}) {
 
   function setPlaying(on) {
     playing = on
-    el.playPause.textContent = on ? 'Pause' : 'Play'
+    // Only the label, so the two glyphs survive; CSS shows whichever one the
+    // pressed state calls for.
+    el.playLabel.textContent = on ? 'Pause' : 'Play'
     el.playPause.setAttribute('aria-pressed', String(on))
     onPlayingChange(on)
   }
@@ -344,6 +399,7 @@ export function mountUi(root, options = {}) {
     if (next === mode) return
     mode = next
     const showingModel = mode === 'model'
+    root.dataset.mode = mode
     el.tabModel.setAttribute('aria-selected', String(showingModel))
     el.tabImage.setAttribute('aria-selected', String(!showingModel))
     el.panelModel.hidden = !showingModel
@@ -400,14 +456,8 @@ export function mountUi(root, options = {}) {
     observer.observe(thumb)
   }
 
-  function card(model) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'card'
-    button.setAttribute('role', 'option')
-    button.setAttribute('aria-selected', 'false')
-    button.dataset.key = keyOf(model)
-
+  /** The picture element both the list rows and the sheet tiles hang off. */
+  function thumbFor(model) {
     const thumb = document.createElement('span')
     thumb.className = 'thumb'
     const img = document.createElement('img')
@@ -418,36 +468,69 @@ export function mountUi(root, options = {}) {
     img.setAttribute('decoding', 'async')
     thumb.append(img)
     fillThumb(model, thumb, img)
+    return thumb
+  }
 
-    const meta = document.createElement('span')
-    meta.className = 'meta'
-    const name = document.createElement('span')
-    name.className = 'name'
-    name.textContent = titleOf(model.name)
-    // The card shows the subject; the file name is one hover away and is still
-    // spelled out in full in the status bar under the turntable.
-    button.title = model.name
-    const sub = document.createElement('span')
-    sub.className = 'sub'
+  /** The line under a name: what makes two files with one subject tell apart. */
+  function subLine(model) {
     const line = tagsOf(model.name)
     if (model.readable === false) line.push('unreadable')
     else if (typeof model.triangles === 'number') line.push(`${formatShortCount(model.triangles)} tris`)
     line.push(formatBytes(model.byteSize), formatAge(model.modifiedAt))
-    sub.textContent = line.join(' · ')
-    meta.append(name, sub)
+    return line.join(' · ')
+  }
 
-    button.append(thumb, meta)
-    button.addEventListener('click', () => {
-      select(button.dataset.key)
-      // A click in the gallery means "show me this one", so it opens the
-      // turntable. The Gallery button goes back.
-      if (layout === 'gallery') setView('single')
-    })
+  function meta(model) {
+    const wrap = document.createElement('span')
+    wrap.className = 'meta'
+    const name = document.createElement('span')
+    name.className = 'name'
+    name.textContent = titleOf(model.name)
+    const sub = document.createElement('span')
+    sub.className = 'sub'
+    sub.textContent = subLine(model)
+    wrap.append(name, sub)
+    return wrap
+  }
+
+  /** A row in the sidebar list. This is the page's one selectable set. */
+  function card(model) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'card'
+    button.setAttribute('role', 'option')
+    button.setAttribute('aria-selected', 'false')
+    button.dataset.key = keyOf(model)
+    // The card shows the subject; the file name is one hover away and is still
+    // spelled out in full in the status bar under the turntable.
+    button.title = model.name
+
+    button.append(thumbFor(model), meta(model))
+    button.addEventListener('click', () => open(button.dataset.key))
     button.addEventListener('keydown', (event) => {
       if (event.key === 'ArrowDown') { event.preventDefault(); moveSelection(1) }
       else if (event.key === 'ArrowUp') { event.preventDefault(); moveSelection(-1) }
     })
     return button
+  }
+
+  /** A tile in the contact sheet. Not an option: the sidebar owns selection. */
+  function tile(model) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'tile'
+    button.dataset.key = keyOf(model)
+    button.title = model.name
+    button.setAttribute('aria-current', 'false')
+    button.append(thumbFor(model), meta(model))
+    button.addEventListener('click', () => open(button.dataset.key))
+    return button
+  }
+
+  /** Picking a model anywhere means "show me this one", so it opens the turntable. */
+  function open(key) {
+    select(key)
+    setView('single')
   }
 
   function setView(next) {
@@ -456,37 +539,56 @@ export function mountUi(root, options = {}) {
     root.dataset.view = layout
     el.viewGallery.setAttribute('aria-pressed', String(layout === 'gallery'))
     el.viewSingle.setAttribute('aria-pressed', String(layout === 'single'))
+    renderSheet()
     // Same reason the tabs call this: the canvas was display:none and comes
     // back at a size the renderer has not been told about.
     onLayoutChange()
   }
 
+  function visibleModels() {
+    return filterModels(models, el.filter.value)
+  }
+
   function renderList() {
-    const visible = filterModels(models, el.filter.value)
+    const visible = visibleModels()
     el.list.innerHTML = ''
     for (const model of visible) el.list.append(card(model))
     el.count.textContent = visible.length === models.length
       ? `(${models.length})`
       : `(${visible.length}/${models.length})`
 
-    if (!models.length) {
-      el.note.hidden = false
-      el.note.textContent = 'No models yet.'
-    } else if (!visible.length) {
-      el.note.hidden = false
-      el.note.textContent = `Nothing matches "${el.filter.value.trim()}".`
-    } else {
-      el.note.hidden = true
-      el.note.textContent = ''
+    const message = !models.length
+      ? 'No models yet.'
+      : (!visible.length ? `Nothing matches "${el.filter.value.trim()}".` : '')
+    for (const note of [el.note, el.sheetNote]) {
+      note.hidden = !message
+      note.textContent = message
     }
+    renderSheet()
+    markSelected()
+  }
+
+  // Tiles are built only for the layout that shows them. In single view the
+  // sheet is empty rather than hidden, so a hidden grid cannot go stale and
+  // cannot hold a second copy of every thumbnail image alive.
+  function renderSheet() {
+    el.sheet.innerHTML = ''
+    if (layout !== 'gallery') return
+    for (const model of visibleModels()) el.sheet.append(tile(model))
     markSelected()
   }
 
   function markSelected() {
+    const key = keyOf(selected)
     for (const button of el.list.querySelectorAll('.card')) {
-      const on = Boolean(selected) && button.dataset.key === keyOf(selected)
+      const on = Boolean(selected) && button.dataset.key === key
       button.setAttribute('aria-selected', String(on))
       button.classList.toggle('selected', on)
+    }
+    // A tile says which model is loaded to a screen reader and to the URL, and
+    // says nothing about it visually: see the note on `.tile` in style.css.
+    for (const button of el.sheet.querySelectorAll('.tile')) {
+      button.setAttribute('aria-current', String(Boolean(selected) && button.dataset.key === key))
     }
   }
 
@@ -517,7 +619,7 @@ export function mountUi(root, options = {}) {
   }
 
   function moveSelection(delta) {
-    const visible = filterModels(models, el.filter.value)
+    const visible = visibleModels()
     if (!visible.length) return
     const at = visible.findIndex((m) => keyOf(m) === keyOf(selected))
     const next = visible[Math.min(visible.length - 1, Math.max(0, at + delta))]
@@ -581,6 +683,9 @@ export function mountUi(root, options = {}) {
   el.wireframe.addEventListener('change', () => onWireframeChange(el.wireframe.checked))
   el.grid.addEventListener('change', () => onGridChange(el.grid.checked))
   el.quality.addEventListener('change', () => onQualityChange(el.quality.checked))
+  // The wordmark works the way a logo does everywhere else: it goes home, and
+  // home is the sheet of everything that has been generated.
+  el.brand.addEventListener('click', () => setView('gallery'))
   el.viewGallery.addEventListener('click', () => setView('gallery'))
   el.viewSingle.addEventListener('click', () => setView('single'))
   el.reset.addEventListener('click', () => onResetView())

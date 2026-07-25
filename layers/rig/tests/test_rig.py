@@ -485,3 +485,22 @@ def test_the_result_records_which_runner_actually_ran(tmp_path):
     result = json.loads(proc.stdout)
     validate(result, RESULT_SCHEMA)
     assert result["engine"]["runner"] == "binary"
+
+
+@needs_blender
+def test_the_skinned_mesh_exports_as_a_root_node(tmp_path):
+    """glTF ignores a skinned mesh node's own transform by specification, so a
+    skinned mesh under a parent is a trap: the Khronos validator warns on it,
+    and anyone who drops the asset under a transformed node silently gets
+    nothing. ARMATURE_AUTO parents the mesh to the armature as a side effect of
+    solving the weights, and that parenting has to be cleared before export."""
+    proc = run_cli("--glb", HUMANOID, "--subject", "humanoid", "--animations", "idle",
+                   "--out-dir", str(tmp_path))
+    assert proc.returncode == 0, proc.stderr
+    gltf = rig_module.read_glb(json.loads(proc.stdout)["glb"]["uri"])
+
+    skinned = {n for n, node in enumerate(gltf["nodes"]) if "skin" in node}
+    assert skinned, "nothing in the file is skinned"
+    parented = {child for node in gltf["nodes"] for child in node.get("children", [])}
+    assert not (skinned & parented), \
+        f"skinned node(s) {sorted(skinned & parented)} are parented; glTF will ignore their transform"

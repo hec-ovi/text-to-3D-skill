@@ -23,7 +23,7 @@ Entry point: `python3 src/rig.py --glb <file> --subject humanoid --out-dir <dir>
 
 | Param | Schema | Postconditions |
 | --- | --- | --- |
-| `RigResult` | [`schema/rig_result.json`](schema/rig_result.json) | `glb.uri` exists and hashes to `glb.checksum.sha256`. It has been parsed before this envelope was emitted: glTF magic, container version 2, a JSON chunk, a BIN chunk, at least one mesh, and for a humanoid a skin plus `JOINTS_0` on a primitive. `skeleton.joints` and the `animations` list are read back out of the written file, so a clip that failed to author is an error rather than a claim. |
+| `RigResult` | [`schema/rig_result.json`](schema/rig_result.json) | `glb.uri` exists and hashes to `glb.checksum.sha256`. The skinned mesh is exported as a root node: glTF ignores a skinned mesh node's own transform, so a parented one makes the Khronos validator warn and silently drops any parent transform a consumer applies. It has been parsed before this envelope was emitted: glTF magic, container version 2, a JSON chunk, a BIN chunk, at least one mesh, and for a humanoid a skin plus `JOINTS_0` on a primitive. `skeleton.joints` and the `animations` list are read back out of the written file, so a clip that failed to author is an error rather than a claim. |
 
 `poseWarnings` is present on every humanoid result and absent for a prop. It reports what is wrong with the pose the *source* mesh was reconstructed in, worst first, each finding carrying a `code` from a closed set, the `measured` number behind it, and a `detail` saying what it does to the rig. An empty list means nothing was found, which is a different answer from the field being missing.
 

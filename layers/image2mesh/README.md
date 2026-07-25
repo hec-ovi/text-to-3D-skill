@@ -48,6 +48,8 @@ triangulation.
 
 ## Things that will bite you
 
+- **The PBR map is flatter than the picture that produced it.** Measured on a generated sports car, the baked metallicRoughness averages roughness 0.72 and metalness 0.33 across a 2048 atlas, where car paint should be roughness 0.15 to 0.3. Glossy subjects therefore arrive matte no matter how the viewer lights them. Sample it yourself before blaming a renderer: load the GLB, read `material.metalnessMap.image` into a canvas, and average the green (roughness) and blue (metalness) channels.
+
 - `decimate_qem.cpp` and `deform_conv_cpu.cpp` look like CPU code that a Vulkan-only build should not need. They are the dispatchers. Delete them and the Vulkan implementations lose their entry point.
 - The container needs `/dev/dri` **and** the host's render group id. Without the group it starts, finds no device, and exits 78 rather than falling back to the CPU.
 - Weights are mounted read-only at `/models`. The entrypoint checks for `ss_flow.gguf` and exits 78 if it is missing, because the engine's own failure for missing weights is much further downstream and much less clear.

@@ -6,13 +6,17 @@ The viewer for everything this repo produces. The contract is [`CONTRACT.md`](CO
 python3 src/serve.py --dir ../../out --open
 ```
 
-Two layouts over one list of models. **Gallery** is a grid of cards, each showing that GLB actually rendered, at 512px, by the same studio the turntable uses. **Single** puts the list down the left and a turntable in the middle, with the source image behind a second tab, because seeing both is the only way to tell a bad reconstruction from a bad prompt. Cards carry the triangle count, the size and the age either way; filter by name, or walk the list with the arrow keys.
+The model list is down the left and stays there. Only the middle pane changes. The page opens on **Gallery**, a contact sheet where every card is that GLB actually rendered, at 512px, by the same studio the turntable uses. **Single** swaps the sheet for the turntable, with the source image behind a second tab, because seeing both is the only way to tell a bad reconstruction from a bad prompt. Picking a model anywhere opens it on the turntable, and the wordmark in the top bar goes back to the sheet. Cards carry the triangle count, the size and the age either way; filter by name, or walk the list with the arrow keys.
 
-Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with `r512` and `rigged` kept as tags so a rigged asset and the mesh it came from never read the same. The full name is on hover and in the status bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
+The top bar names the file on the turntable, the bottom bar carries its numbers and whatever the loader last said. Render controls (auto rotate and its speed, wireframe, grid, quality, reset view) sit in the viewer's own bar rather than floating over the render, and they step out of the way on the image tab where they mean nothing.
+
+Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with `r512` and `rigged` kept as tags so a rigged asset and the mesh it came from never read the same. The full name is on hover and spelled out in the top bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
 
 The card art is the GLB, not the PNG it was reconstructed from. Using the source image was tempting and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have thrown half of it away. The source image is the fallback, for a model whose render fails or a page with no WebGL.
 
 A rigged asset gets a Motion panel under the list with one entry per clip in the file, and a pause button. Picking a clip cross-fades to it over a quarter of a second.
+
+The sidebar list is the page's one `listbox`, and its rows are the only `option`s. Sheet tiles are plain buttons carrying `aria-current`: two listboxes over the same models would be two selections for a screen reader to reconcile. Tiles look identical at rest, including the one that is loaded, and light up with an accent bar under the pointer; the sidebar row is where you read which model the turntable has.
 
 Every model has a stable id, so `?id=hero-r512` deep links one, and `GET /api/models?id=hero-r512` resolves the same thing from a script.
 
@@ -32,6 +36,10 @@ Every model has a stable id, so `?id=hero-r512` deep links one, and `GET /api/mo
 ## Things that will bite you
 
 - **Keep `ui.js` free of three.js.** The split is what lets the interface be tested without a GPU. Importing `three` there would drag WebGL into jsdom and the suite would die.
+- The layout swap is CSS, off `#app[data-view]`, and the image tab hides the render controls off `#app[data-mode]`. jsdom loads no stylesheet, so a test cannot see either of those; assert the attribute, not the visibility.
+- The sheet is emptied when it is not showing rather than hidden, so there is never a stale grid holding a second copy of every thumbnail image alive.
+- The speed slider's `value` in `ui.js` is the opening rotation speed. `main.js` reads `ui.rotation` at startup and pushes it into the viewer, so that attribute is the only place it is set.
+- Nothing is downloaded: system fonts, icons written as inline SVG, and the one checkbox tick is a `data:` URI. A CDN font or icon set would break the offline promise the rest of the layer keeps.
 - The import map in `index.html` maps `three` and `three/addons/` at the exact npm layout. The addons import each other by relative path, so flattening `web/vendor/three/` breaks `GLTFLoader`.
 - TRELLIS writes real metallic and roughness. Without an environment map, metal renders black. The environment here is a graded sky dome plus three emissive soft boxes, built in code, so the page still needs no downloaded asset.
 - **Colours in `studio.js` are linear, not sRGB.** The composer renders into a linear target and `OutputPass` encodes at the very end, so a value that looks like a dark hex is not one: `0.075` lands near `0.30` once encoded. The backdrop was a grey fog bank until this was worked out.
