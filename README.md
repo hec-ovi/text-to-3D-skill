@@ -172,12 +172,12 @@ Everything crossing a boundary is a schema-validated JSON envelope, and binary p
 ## Tests
 
 ```bash
-./scripts/test.sh          # all seven layers, 143 tests, plus the skill checks
+./scripts/test.sh          # all seven layers, 226 tests, plus the skill checks
 ```
 
 No GPU and no weights needed: the tests stand in only for ComfyUI, the engine binary and Blender, and drive the real CLIs for everything else, including five malformed-GLB shapes that must never leave the mesh layer wearing a success envelope. The one test that needs the GPU is skipped unless `T2M_RUN_GPU=1`, and the rig layer's five real-Blender tests skip themselves with a note when Blender is not installed.
 
-The preview layer's share is 30 HTTP tests against a real server, plus 27 DOM tests (vitest, jsdom, Testing Library, MSW) that drive the interface with real clicks and keystrokes. The DOM half needs `npm install` in `layers/preview` once; without it it is skipped with a note rather than failing.
+The preview layer's share is 33 HTTP tests against a real server, plus 39 DOM tests (vitest, jsdom, Testing Library, MSW) that drive the interface with real clicks and keystrokes. The DOM half needs `npm install` in `layers/preview` once; without it it is skipped with a note rather than failing.
 
 ## Limits
 
