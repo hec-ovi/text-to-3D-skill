@@ -99,6 +99,8 @@ python3 layers/pipeline/src/pipeline.py --prompt "a viking warrior" --target-fac
 
 A generated mesh is a statue. This turns one into something that walks.
 
+**Experimental.** The output is a valid rigged glTF and the clips play, but a generated character does not animate cleanly yet. Two measured reasons: TRELLIS bakes the reference image's lighting into the base colour, and baked shading cannot follow a moving limb; and a clothed figure often hides its own arms from the measurement, so those bones fall back to the template. Tell the user this rather than handing over a walk cycle as finished. Static meshes and props are not experimental.
+
 ```bash
 python3 layers/rig/src/rig.py --glb out/hero-r512.glb --subject humanoid --out-dir out
 python3 layers/rig/src/rig.py --glb out/barrel-r512.glb --subject prop --socket socket_top

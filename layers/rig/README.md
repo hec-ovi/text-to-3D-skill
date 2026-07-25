@@ -1,5 +1,7 @@
 # rig
 
+> **Experimental.** Everything here runs and the export is a valid rigged glTF, but a generated character does not animate cleanly yet. The two reasons are baked lighting, which cannot follow a moving limb, and clothed figures whose arms never separate from the torso in cross-section so their bones come from the template. Both are upstream of Blender. See "The pose is the whole game" below and the notes in the root README.
+
 A skeleton, skinning weights and standard clips for a generated GLB. The contract is [`CONTRACT.md`](CONTRACT.md); this is the working notes.
 
 ```bash

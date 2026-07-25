@@ -112,6 +112,9 @@ The site that prompted this, threejsassets.com, has no API at all and forbids au
 
 ## Low poly, and making it move
 
+> **Movement is experimental.** The skeleton, the skinning and the four clips are real and the file is a valid rigged glTF, but a generated character does not yet animate cleanly. Two known reasons, both measured rather than guessed, are written up below. Treat the rig as a starting point you open in Blender, not as a finished asset. The static meshes are not experimental.
+
+
 `--target-faces N` sets the quadric simplify target. At res 512 the default is 150K faces; asking for 4000 gives a 3810-triangle, 304 KB GLB in the same run time, textured, because the collapse happens before the UV unwrap and the texture is baked onto the simplified mesh.
 
 ```bash
@@ -122,6 +125,14 @@ python3 layers/rig/src/rig.py --glb out/<asset>.glb --subject humanoid --out-dir
 That second command gives a humanoid 19 Mixamo-named bones fitted to the mesh by measuring it, bone-heat skinning weights, and `idle`, `walk`, `run` and `jump` clips in the GLB. It took 1.1 s on the 5957-face warrior above. A prop instead gets no armature at all: `--subject prop` puts TRS clips on the node and `--socket <name>` adds a named attachment empty, which is what a game engine actually wants from a barrel.
 
 Rig after decimation, never before: simplifying a skinned mesh throws the weights away. Why the skeleton is measured rather than predicted by a neural rigger, and why the clips are authored rather than downloaded, is in [`layers/rig/README.md`](layers/rig/README.md).
+
+### What is wrong with it, specifically
+
+**Baked lighting cannot follow an animation.** TRELLIS paints the reference image's shading into the base colour, so the fold shadows and the highlight down a trouser leg are pixels on the texture, not lighting. Standing still that looks right. The moment the leg swings, a shadow baked onto the thigh stays on the thigh while the thigh moves into the light, and the result reads as though the mesh has torn. It has not: the geometry is intact and validates clean, and the same bands are visible on the unrigged mesh standing still. The lever is the image stage: a character asked for under flat, even light bakes less shading in, at the cost of the shading gradient the reconstructor uses to infer brow, nose and cheek relief. That trade is not made yet.
+
+**Clothed figures hide their own arms.** On the generated character in `out/`, both arms came back `LIMB_NOT_MEASURED` and the shoulder line came back `SHOULDERS_NOT_FOUND`: a business suit's shoulders blend into the torso silhouette, so no horizontal band of the mesh ever splits into a torso with an arm either side. Those bones then come from the template rather than from the figure, and bone heat binds vertices to bones that are not quite where the limbs are.
+
+Neither is a Blender problem. Blender does what it is asked; what it is asked for is derived from a mesh that lost the information. The work in progress is upstream of it.
 
 The result carries `poseWarnings`, because the pose the mesh was reconstructed in is permanent: it becomes the rest pose and every clip plays on top of it, so a figure caught mid-stride limps in all four. Run over the characters already in `out/`, the check found one with its feet 36% of its height apart front to back, two with an arm that never separates from the torso, and bent limbs on most of them. It is a warning rather than an error, because the rig cannot fix a pose and a file plus a note beats a refusal. What the image stage asks for to avoid them is in [`layers/text2image/src/klein.py`](layers/text2image/src/klein.py); a prompt framed as a character also gets four times the atlas texels, since a head is an eighth of a figure and the atlas hands them out by surface area.
 
@@ -185,6 +196,7 @@ The preview layer's share is 33 HTTP tests against a real server, plus 39 DOM te
 - Faces do not survive close inspection. The same character at 296590 triangles and at 8000 has the same melted face, so this is the reconstruction's ceiling rather than the decimation's: the head is an eighth of the figure and gets the texels its surface area earns. A character now gets four times the atlas by default, which buys back some of it; helmets, hoods and stylised characters are still the way around the rest.
 - Glossy subjects come back matte, and it is the texture rather than the renderer. TRELLIS bakes a metallicRoughness map that measures, on the red sports car above, a mean roughness of 0.72 and metalness of 0.33 over a 2048 atlas. Car paint is roughness 0.15 to 0.3 with a clearcoat over it, so the file itself says matte and the viewer is showing you the file. Anything that reads as polished in the reference image will not read as polished in the GLB.
 - Nothing checks that the mesh matches the prompt. The pose is checked, the file is validated, the triangles are measured. Whether it is the thing you asked for is still your eyes on the gallery.
+- Rigging is experimental. It produces a valid rigged glTF that validates with 0 errors and 0 warnings, and the clips play, but a generated character does not animate cleanly for the two reasons written up above. Open it in Blender and expect to fix weights.
 - Rigging covers one upright humanoid or one prop. No quadrupeds, no vehicles, no faces or fingers, and no editing an existing mesh.
 - No CPU path. `--require-gpu` is always passed, so a missing Vulkan device is an error rather than a twenty-minute fallback.
 - Tested on one machine, the gfx1151 box described in [`layers/image2mesh/bench/README.md`](layers/image2mesh/bench/README.md).
