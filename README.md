@@ -153,6 +153,8 @@ npm install
 npm test
 ```
 
+Measured on the Strix Halo host after a fresh build: init reached all three health endpoints in 853 seconds. The prompt `a small blue ceramic teapot with a curved spout, loop handle, and round lid` then produced its 1024 PNG in 514.6 seconds and a 3,982-triangle, 229,420-byte GLB in 154.2 seconds. The bundled viewer loaded and rendered the result.
+
 ## Limits
 
 - One subject per generation, not a multi-object scene.
