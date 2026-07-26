@@ -2,6 +2,7 @@
 """Start and verify the static text-to-3D toolkit."""
 
 import argparse
+import collections
 import json
 import os
 import shlex
@@ -72,19 +73,25 @@ def _command(env_name, fallback):
 def _run(command, cwd, code, message):
     print("$ " + shlex.join(command), file=sys.stderr, flush=True)
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=cwd,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            check=False,
+            bufsize=1,
         )
     except FileNotFoundError as exc:
         raise InitError("DEPENDENCY_MISSING", f"command not found: {command[0]}", str(exc))
-    if completed.returncode:
-        raise InitError(code, message, (completed.stdout or "")[-2000:])
-    return completed.stdout
+    tail = collections.deque(maxlen=80)
+    for line in process.stdout:
+        print(line, end="", file=sys.stderr, flush=True)
+        tail.append(line)
+    return_code = process.wait()
+    output_tail = "".join(tail)
+    if return_code:
+        raise InitError(code, message, output_tail[-8000:])
+    return output_tail
 
 
 def _require_files(request):
@@ -201,6 +208,7 @@ def _healthy(url, timeout=2):
 
 
 def _wait(url, name, deadline, error_code="SERVICE_TIMEOUT"):
+    print(f"{name}: waiting for {url}", file=sys.stderr, flush=True)
     while time.monotonic() < deadline:
         if _healthy(url):
             print(f"{name}: ready at {url}", file=sys.stderr, flush=True)

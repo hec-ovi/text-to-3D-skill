@@ -66,7 +66,10 @@ def fake_docker(tmp_path):
     log = tmp_path / "docker.log"
     executable = tmp_path / "docker"
     executable.write_text(
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$T2M_DOCKER_LOG\"\nexit 0\n",
+        "#!/bin/sh\n"
+        "printf '%s\\n' \"$*\" >> \"$T2M_DOCKER_LOG\"\n"
+        "printf 'docker progress: %s\\n' \"$*\"\n"
+        "exit 0\n",
         encoding="utf-8",
     )
     executable.chmod(0o755)
@@ -131,6 +134,7 @@ def test_cli_starts_compose_and_preview_end_to_end(tmp_path):
     commands = docker_log.read_text(encoding="utf-8")
     assert "compose version" in commands
     assert "up -d --no-build" in commands
+    assert "docker progress: compose version" in completed.stderr
     os.kill(result["services"]["preview"]["pid"], signal.SIGTERM)
 
 
