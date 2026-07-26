@@ -18,13 +18,13 @@ compile_commands.json
 # runtime data
 out/
 tmp/
+.runtime/
 *.glb
 *.png
 *.jpg
 *.webp
 !docs/assets/*.png
 !layers/image2mesh/fixtures/*.png
-!layers/rig/fixtures/*.glb
 !docs/assets/*.webp
 
 # model weights (live in /home/hec/models, never in-tree)

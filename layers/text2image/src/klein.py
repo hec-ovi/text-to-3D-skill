@@ -47,26 +47,17 @@ OBJECT_FRAMING = (
     "no text, no watermark, sharp focus, product photograph"
 )
 
-# A person is not a product. Two things go wrong when a character is framed like
-# one: a three-quarter view hides half the face from the reconstruction, and an
-# unspecified stance comes out mid-action, which the rig then binds as the rest
-# pose so every clip plays on top of it. This asks for the pose a rigger wants
-# and puts the face where the camera can resolve it.
+# A person is not a product. A three-quarter view hides half the face from the
+# reconstruction, while an unspecified stance often crops or fuses limbs. This
+# asks for a neutral static reference and puts the face where the camera can
+# resolve it.
 #
-# Every clause is load-bearing, and the second half of them were added after
-# measuring what actually came back. Running layers/rig's pose report over the
-# characters this stage had produced found, in order of how often and how badly:
+# Every clause follows a measured reconstruction failure:
 #
-#   a stride         feet 36% of the figure's height apart front to back, which
-#                    an "A-pose" instruction alone does not prevent because a
-#                    walking figure can still have its arms out
-#   untraceable arms an arm holding or crossing something never separates from
-#                    the torso in cross-section, and bone heat then bleeds its
-#                    weights into the ribs
-#   no shoulder line a cloak or hair across the shoulders means no band splits
-#                    into torso-plus-two-arms, so the shoulders are a guess
-#   a bent limb      a limb bowed more than a ninth of its own length off
-#                    straight, baked into the bind pose for good
+#   a stride         puts one foot behind the other in the single view
+#   hidden arms      merge into the torso during reconstruction
+#   covered shoulders make the upper-body silhouette ambiguous
+#   bent limbs       preserve an accidental action pose in the static mesh
 #
 # So the stance is now spelled out as a *symmetric, static, weight-even* one
 # rather than named, the hands are explicitly empty, and the shoulders are asked
@@ -90,9 +81,9 @@ CHARACTER_FRAMING = (
     "reference sheet, front view, T-pose reference orthographic style"
 )
 
-# Words that mean the subject is a person or creature that will be rigged. The
-# cost of a wrong guess is asymmetric: character framing on a prop only wastes a
-# few tokens, product framing on a person hides the face and bakes in a pose.
+# Words that mean the subject is a person or creature. The cost of a wrong guess
+# is asymmetric: character framing on a prop wastes a few tokens, while product
+# framing on a person hides the face and limbs.
 CHARACTER_WORDS = (
     "man", "male", "woman", "female", "boy", "girl", "person", "human", "guy",
     "lady", "child", "kid", "character", "warrior", "knight", "soldier",
@@ -144,8 +135,8 @@ def looks_like_a_character(subject):
 
     A trailing s is stripped as well as matched, so "two warriors" gets the
     stance instructions. TRELLIS reconstructs one subject regardless, but a
-    plural prompt is already going to disappoint and it should at least
-    disappoint in a rigged A-pose.
+    plural prompt is already going to disappoint and it should at least keep a
+    readable static silhouette.
 
     A character word directly in front of something worn or carried is an
     adjective and loses: "a samurai sword" is a sword. Anything less direct

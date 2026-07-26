@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InitError",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "message"],
+  "properties": {
+    "contractVersion": { "const": "1.0" },
+    "code": {
+      "enum": [
+        "INVALID_REQUEST",
+        "TOOLKIT_MISSING",
+        "COMFYUI_MISSING",
+        "DEPENDENCY_MISSING",
+        "MODELS_MISSING",
+        "DOWNLOAD_FAILED",
+        "START_FAILED",
+        "SERVICE_TIMEOUT",
+        "OUTPUT_WRITE_FAILED",
+        "PREVIEW_FAILED"
+      ]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "detail": { "type": "string" }
+  }
+}

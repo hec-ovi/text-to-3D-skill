@@ -10,11 +10,11 @@ The model list is down the left and stays there. Only the middle pane changes. T
 
 The top bar names the file on the turntable, the bottom bar carries its numbers and whatever the loader last said. Render controls (auto rotate and its speed, wireframe, grid, quality, reset view) sit in the viewer's own bar rather than floating over the render, and they step out of the way on the image tab where they mean nothing.
 
-Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with `r512` and `rigged` kept as tags so a rigged asset and the mesh it came from never read the same. The full name is on hover and spelled out in the top bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
+Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with resolution and other legacy suffixes kept as tags. The full name is on hover and spelled out in the top bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
 
 The card art is the GLB, not the PNG it was reconstructed from. Using the source image was tempting and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have thrown half of it away. The source image is the fallback, for a model whose render fails or a page with no WebGL.
 
-A rigged asset gets a Motion panel under the list with one entry per clip in the file, and a pause button. Picking a clip cross-fades to it over a quarter of a second.
+A GLB imported from elsewhere gets a Motion panel when it already contains animation clips. The text-to-3D pipeline itself produces static GLBs.
 
 The sidebar list is the page's one `listbox`, and its rows are the only `option`s. Sheet tiles are plain buttons carrying `aria-current`: two listboxes over the same models would be two selections for a screen reader to reconcile. Tiles look identical at rest, including the one that is loaded, and light up with an accent bar under the pointer; the sidebar row is where you read which model the turntable has.
 

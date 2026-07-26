@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InitRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": { "const": "1.0", "default": "1.0" },
+    "toolkitDir": { "type": "string", "minLength": 1 },
+    "comfyDir": { "type": "string", "minLength": 1 },
+    "modelsDir": { "type": "string", "minLength": 1 },
+    "outDir": { "type": "string", "minLength": 1 },
+    "runtimeDir": { "type": "string", "minLength": 1 },
+    "comfyEndpoint": { "type": "string", "minLength": 1, "default": "http://127.0.0.1:8188" },
+    "engineEndpoint": { "type": "string", "minLength": 1, "default": "http://127.0.0.1:8189" },
+    "previewHost": { "type": "string", "minLength": 1, "default": "127.0.0.1" },
+    "previewPort": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 8190 },
+    "fetchModels": { "type": "boolean", "default": true },
+    "buildImages": { "type": "boolean", "default": true },
+    "startPreview": { "type": "boolean", "default": true },
+    "timeoutSeconds": { "type": "integer", "minimum": 1, "default": 900 }
+  }
+}

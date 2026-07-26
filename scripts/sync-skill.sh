@@ -5,7 +5,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 for target in skills/text-to-3d/SKILL.md plugins/text-to-3d/skills/text-to-3d/SKILL.md; do
-  mkdir -p "$(dirname "$target")"
+  dir="$(dirname "$target")"
+  mkdir -p "$dir/scripts"
   cp SKILL.md "$target"
+  cp scripts/init.py "$dir/scripts/init.py"
+  chmod +x "$dir/scripts/init.py"
   echo "wrote $target"
 done

@@ -4,15 +4,13 @@ Each layer is a blackbox. Open one folder, read its `CONTRACT.md` and `schema/`,
 
 | You want to change | Open | Do not open |
 | --- | --- | --- |
+| Starting the local services and checking readiness | [`layers/init/`](../layers/init/CONTRACT.md) | the services' internals |
 | The image prompt framing, sampler, steps, klein weights, the ComfyUI graph | [`layers/text2image/`](../layers/text2image/CONTRACT.md) | anything else |
 | Mesh resolution, UV/atlas/decimation knobs, GLB validation, how the engine is invoked | [`layers/image2mesh/`](../layers/image2mesh/CONTRACT.md) | `engine/` unless the change is in C++ |
 | The TRELLIS.2 engine itself: kernels, Vulkan compute, model loading, mesh export | [`layers/image2mesh/engine/`](../layers/image2mesh/engine/PROVENANCE.md) | the Python driver above it |
 | The container: base image, Vulkan drivers, device access, GTT behaviour | [`layers/image2mesh/docker/`](../layers/image2mesh/docker/Dockerfile) | |
 | Stage order, what the CLI accepts, how failures are wrapped | [`layers/pipeline/`](../layers/pipeline/CONTRACT.md) | either stage's internals |
-| Skeletons, skinning weights, the walk cycle, prop sockets | [`layers/rig/`](../layers/rig/CONTRACT.md) | anything that generates meshes |
 | The viewer: controls, lighting, framing, rotation, the model list API | [`layers/preview/`](../layers/preview/CONTRACT.md) | anything that generates assets |
-| The MCP tools, their schemas, what a tool result carries | [`layers/mcp/`](../layers/mcp/CONTRACT.md) | the layers it fronts |
-| Searching or fetching a stock CC0 model, and the licence rules | [`layers/assets/`](../layers/assets/CONTRACT.md) | anything that generates meshes |
 | What an agent is told about this skill | [`SKILL.md`](../SKILL.md), then `scripts/sync-skill.sh` | the install copies, which are generated |
 | How the skill is packaged and installed | [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) | |
 | Fetching or verifying weights | [`scripts/fetch-models.sh`](../scripts/fetch-models.sh) | |
@@ -36,9 +34,5 @@ TextToMeshRequest -> [pipeline]
 - **text2image** owns everything about turning words into a picture, and knows nothing about meshes.
 - **image2mesh** owns everything about turning a picture into a GLB, and does not care where the picture came from.
 - **pipeline** owns the order and the error wrapping, and imports from neither.
-- **rig** owns skeletons, skinning and clips, and takes any GLB, not only ones this repo made.
+- **init** owns service startup and readiness checks, and imports no service internals.
 - **preview** owns showing a GLB to a human, and reads a directory of files without knowing what made them.
-- **assets** owns the third-party library and its licence terms, and hands back the same GLB-by-reference shape as everything else.
-- **mcp** owns the protocol surface, runs the other layers as subprocesses, and imports none of them.
-
-`RigResult.glb` is shape-compatible with `MeshResult.glb` on purpose: a rigged asset is still just a GLB by reference, so the preview layer and any caller handle both the same way.

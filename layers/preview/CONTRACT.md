@@ -24,7 +24,7 @@ Entry point: `python3 src/serve.py --dir ../../out`. Python 3.10+, standard libr
 | `ModelList` from `GET /api/models?id=<id>` | [`schema/model_list.json`](schema/model_list.json) | The same envelope holding exactly the one matching entry, so a caller that resolved an id parses what it parses for a list. `404 NOT_FOUND` when nothing matches. |
 | GLB bytes from `GET /models/<name>` | none: the file verbatim | Served as `model/gltf-binary`, with an `ETag` over mtime and size and `Cache-Control: no-cache`. A reload revalidates and gets a 304; a regenerated asset changes both mtime and size, so a stale file can never win. |
 | Image bytes from `GET /images/<name>` | none: the file verbatim | Only `.png`, `.jpg`, `.jpeg` and `.webp` are served; anything else is a `NOT_FOUND`. Same `ETag` handling. |
-| The viewer page from `GET /` | none: HTML, CSS and ES modules | Two layouts over one model list, opening on the gallery. The model list is in the sidebar and is present in both, and is the page's only listbox; only the main area swaps. Gallery: a contact sheet of tiles, each showing that GLB rendered in the browser. Single: the selected model on a turntable or its source image behind two tabs, and, for a rigged asset, a Motion panel that plays the clips the file carries. |
+| The viewer page from `GET /` | none: HTML, CSS and ES modules | Two layouts over one model list, opening on the gallery. The model list is in the sidebar and is present in both, and is the page's only listbox; only the main area swaps. Gallery: a contact sheet of tiles, each showing that GLB rendered in the browser. Single: the selected model on a turntable or its source image behind two tabs. GLBs imported from elsewhere may also expose their existing animation clips. |
 
 ## Events
 

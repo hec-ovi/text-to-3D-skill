@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InitResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "services", "paths", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "const": "1.0" },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["comfyui", "engine"],
+      "properties": {
+        "comfyui": { "$ref": "#/$defs/service" },
+        "engine": { "$ref": "#/$defs/service" },
+        "preview": { "$ref": "#/$defs/service" }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolkitDir", "comfyDir", "modelsDir", "outDir", "runtimeDir"],
+      "properties": {
+        "toolkitDir": { "type": "string", "minLength": 1 },
+        "comfyDir": { "type": "string", "minLength": 1 },
+        "modelsDir": { "type": "string", "minLength": 1 },
+        "outDir": { "type": "string", "minLength": 1 },
+        "runtimeDir": { "type": "string", "minLength": 1 }
+      }
+    },
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "endpoint"],
+      "properties": {
+        "state": { "const": "ready" },
+        "endpoint": { "type": "string", "minLength": 1 },
+        "pid": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Text to 3D"
+  short_description: "Generate local, game-ready GLB assets"
+  default_prompt: "Use $text-to-3d to initialize the local toolkit and generate a low-poly GLB from my description."

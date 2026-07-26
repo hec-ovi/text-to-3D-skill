@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "text-to-3d": {
-      "command": "python3",
-      "args": ["layers/mcp/src/server.py", "--out-dir", "out"],
-      "timeout": 900000
-    }
-  }
-}
