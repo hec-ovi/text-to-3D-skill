@@ -107,11 +107,16 @@ def generate(request):
 
     started = time.monotonic()
 
-    # A standing figure rendered square spends half its width on empty backdrop,
-    # and the engine resizes to 1024 and then crops to the subject before the
-    # reconstructor ever sees it, so what matters is the face's pixel share of
-    # that crop. Portrait is the cheapest way to raise it. The caller's own size
-    # always wins; this only fills the gap when nothing was asked for.
+    # A standing figure rendered square spends half its width on empty backdrop.
+    # The engine crops to the subject before the reconstructor sees anything, so
+    # what matters is the subject's pixel share of that crop, and portrait is the
+    # cheapest way to raise it. The caller's own size always wins; this only
+    # fills the gap when nothing was asked for.
+    #
+    # This was worth 1.46x the wrong body proportions until the engine stopped
+    # cutting that crop out of a square it had squashed the image into. See
+    # change 5 in image2mesh/CHANGES.md: a non-square render is only safe
+    # because the crop is now taken from the source pixels.
     portrait = req["framing"] == "character" or (
         req["framing"] == "auto" and _reads_as_character(req["prompt"]))
     asked_for_a_size = "imageSize" in request or "imageWidth" in request

@@ -1,6 +1,6 @@
 {
   "name": "text-to-3d-codex",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Text to a static, textured GLB for Codex agents: one-command local startup, FLUX.2 klein, a Vulkan-only TRELLIS.2 engine, triangle budgets, and a turntable viewer.",
   "author": {
     "name": "Hector Oviedo",

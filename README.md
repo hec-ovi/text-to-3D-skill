@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href=".claude-plugin/marketplace.json"><img src="https://img.shields.io/badge/version-0.4.1-blue.svg" alt="Version"></a>
+  <a href=".claude-plugin/marketplace.json"><img src="https://img.shields.io/badge/version-0.4.2-blue.svg" alt="Version"></a>
   <a href="#prerequisites"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+"></a>
   <a href="layers/image2mesh/engine/PROVENANCE.md"><img src="https://img.shields.io/badge/engine-C%2B%2B%20%2F%20Vulkan-A8442A.svg" alt="C++ / Vulkan engine"></a>
   <a href="#prerequisites"><img src="https://img.shields.io/badge/GPU-AMD%20gfx1151-ED1C24.svg" alt="AMD gfx1151"></a>

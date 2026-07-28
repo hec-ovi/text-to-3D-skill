@@ -1,5 +1,5 @@
 {
   "name": "text-to-3d",
   "description": "Text to a textured GLB with one-command local startup, FLUX.2 klein, a Vulkan-only TRELLIS.2 engine, triangle budgets, humanoid rigging with generated clips, and a turntable viewer.",
-  "version": "0.4.1"
+  "version": "0.4.2"
 }
