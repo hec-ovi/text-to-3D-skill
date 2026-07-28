@@ -12,6 +12,11 @@ which reads as a walk at gameplay distance and does not survive a close look.
 A named Mixamo skeleton is the point of the naming pass, so a real clip pack
 can be dropped in later and play with no retargeting at all.
 
+Amplitudes are deliberately small. The first version swung the thigh 31
+degrees and dipped the hips 3.5% of body height, which is a march: a walk that
+reads as walking is closer to 20 degrees, and every degree past that is a
+degree of skinning error made visible at the hip and the knee.
+
 Convention, read off the model's own output: +X is left, +Y is up, +Z is
 forward, which is Mixamo's. A rotation about +X takes -Y towards -Z, so a
 negative angle about X swings a downward-pointing limb forward.
@@ -68,18 +73,18 @@ def walk(names, positions, duration=1.0):
     # Thighs lead the stride, half a cycle apart. The knee only ever folds
     # backwards, so its curve is offset to stay on one side of straight.
     channels[index["mixamorig:LeftUpLeg"]] = {
-        "rotation": _curve(None, X, -0.55, 0.0, duration)}
+        "rotation": _curve(None, X, -0.36, 0.0, duration)}
     channels[index["mixamorig:RightUpLeg"]] = {
-        "rotation": _curve(None, X, -0.55, math.pi, duration)}
+        "rotation": _curve(None, X, -0.36, math.pi, duration)}
     channels[index["mixamorig:LeftLeg"]] = {
-        "rotation": _curve(None, X, 0.42, math.pi / 2, duration, offset=0.45)}
+        "rotation": _curve(None, X, 0.28, math.pi / 2, duration, offset=0.30)}
     channels[index["mixamorig:RightLeg"]] = {
-        "rotation": _curve(None, X, 0.42, -math.pi / 2, duration, offset=0.45)}
+        "rotation": _curve(None, X, 0.28, -math.pi / 2, duration, offset=0.30)}
 
     for side, phase in (("Left", math.pi / 2), ("Right", -math.pi / 2)):
         foot = f"mixamorig:{side}Foot"
         if foot in index:
-            channels[index[foot]] = {"rotation": _curve(None, X, 0.22, phase, duration)}
+            channels[index[foot]] = {"rotation": _curve(None, X, 0.14, phase, duration)}
 
     # Arms counter the legs: the left arm goes with the right leg. Without
     # this a walk reads as a shuffle, because the counter-swing is what a
@@ -87,15 +92,15 @@ def walk(names, positions, duration=1.0):
     for side, phase in (("Left", math.pi), ("Right", 0.0)):
         arm = f"mixamorig:{side}Arm"
         if arm in index:
-            channels[index[arm]] = {"rotation": _curve(None, X, -0.38, phase, duration)}
+            channels[index[arm]] = {"rotation": _curve(None, X, -0.24, phase, duration)}
         fore = f"mixamorig:{side}ForeArm"
         if fore in index:
             channels[index[fore]] = {
-                "rotation": _curve(None, X, 0.14, phase, duration, offset=-0.25)}
+                "rotation": _curve(None, X, 0.09, phase, duration, offset=-0.18)}
 
     hips = index.get("mixamorig:Hips")
     if hips is not None:
-        channels[hips] = {"translation": _bob(positions[hips], 0.035, duration)}
+        channels[hips] = {"translation": _bob(positions[hips], 0.018, duration)}
 
     spine = index.get("mixamorig:Spine")
     if spine is not None:

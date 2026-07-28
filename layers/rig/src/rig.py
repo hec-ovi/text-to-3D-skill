@@ -67,6 +67,35 @@ def _floats_from_b64(text, per):
     return [flat[i:i + per] for i in range(0, count, per)] if per > 1 else list(flat)
 
 
+def _check_fits(positions, points):
+    """Refuse a skeleton that is not in the same space as the mesh.
+
+    The model normalises the mesh before predicting, so its skeleton comes back
+    in that normalised frame and something has to map it back. When that
+    mapping was missing, a character 0.98 units tall got a skeleton 1.69 tall,
+    and binding a mesh to a skeleton bigger than itself squashes it: the result
+    was short, wide characters with folded knees, and nothing anywhere said so.
+
+    A bone can sit slightly outside the surface, so the threshold is generous.
+    It is here to catch a wrong coordinate frame, not to police anatomy.
+    """
+    def extent(values):
+        return [max(v[i] for v in values) - min(v[i] for v in values) for i in range(3)]
+
+    mesh, bones = extent(points), extent(positions)
+    for axis, name in enumerate("xyz"):
+        if mesh[axis] < 1e-6:
+            continue
+        ratio = bones[axis] / mesh[axis]
+        if ratio > 1.25:
+            raise RigError(
+                "MODEL_FAILED",
+                "the skeleton is not in the mesh's coordinate frame",
+                f"on {name} the skeleton spans {bones[axis]:.4f} against the mesh's "
+                f"{mesh[axis]:.4f}, {ratio:.2f} times larger; binding to it would "
+                f"squash the model")
+
+
 def call_model(endpoint, points, faces, timeout):
     """Ask the rig server for a skeleton and per-vertex weights."""
     payload = json.dumps({
@@ -106,6 +135,7 @@ def call_model(endpoint, points, faces, timeout):
     joint_count = len(parents)
     if joint_count == 0:
         raise RigError("NOT_A_CHARACTER", "the model predicted no joints")
+    _check_fits(positions, points)
     rows = _floats_from_b64(result["skin"], joint_count)
     if len(rows) != len(points):
         raise RigError("MODEL_FAILED",

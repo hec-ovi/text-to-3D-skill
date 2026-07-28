@@ -111,7 +111,34 @@ def predict(vertices, faces):
                                         temperature=0.5, repetition_penalty=1.0,
                                         num_return_sequences=1, num_beams=1, do_sample=True)
         asset = STATE["model"].predict_step(batch, make_asset=True)["results"][0].asset
-        positions = [[float(c) for c in m[:3, 3]] for m in asset.matrix_local]
+
+        # The model normalises the mesh before it predicts, and the skeleton it
+        # returns is in that normalised frame, not the one the mesh arrived in.
+        # Handing those joints straight to a skinning pass puts every bone in
+        # the wrong place: on a character 0.98 units tall the skeleton came back
+        # 1.69 tall, and binding a mesh to a skeleton larger than itself
+        # squashes it. That looked like a short, wide character with broken
+        # knees, which is a hard symptom to trace back to a coordinate frame.
+        #
+        # `asset.vertices` is the same mesh in the frame the model worked in, so
+        # the two bounding boxes recover the transform exactly, provided it is a
+        # uniform scale and a translation. The per-axis scales are logged so
+        # that assumption is checked on every call rather than trusted.
+        source = np.asarray(vertices, dtype=np.float64)
+        seen = np.asarray(asset.vertices, dtype=np.float64)
+        span = np.maximum(seen.max(0) - seen.min(0), 1e-9)
+        per_axis = (source.max(0) - source.min(0)) / span
+        scale = float(np.median(per_axis))
+        offset = source.min(0) - seen.min(0) * scale
+        spread = float(per_axis.max() / max(per_axis.min(), 1e-9))
+        print(f"[rig] frame: scale {scale:.5f} per-axis {np.round(per_axis, 5).tolist()} "
+              f"spread {spread:.4f}", flush=True)
+        if spread > 1.02:
+            print("[rig] WARNING: the model's normalisation is not a uniform scale; "
+                  "the skeleton will not map back exactly", flush=True)
+
+        positions = [(np.asarray(m[:3, 3], dtype=np.float64) * scale + offset).tolist()
+                     for m in asset.matrix_local]
         return positions, [int(p) for p in asset.parents], np.asarray(asset.skin, dtype=np.float32)
     raise RuntimeError("the dataloader yielded nothing")
 

@@ -41,6 +41,7 @@ Neither changes what is computed. Measured on the Radeon 8060S: the service load
 
 ## Things that will bite you
 
+- **The model normalises the mesh, so its skeleton is not in the mesh's frame.** It comes back scaled by roughly 2x. Binding a mesh to a skeleton bigger than itself squashes it, and what you see is a short, wide character with folded knees rather than anything that says "coordinate frame". The server recovers the transform from the two bounding boxes, logs the per-axis scale so the uniform-scale assumption is checked on every call, and the driver refuses a skeleton more than 1.25x its mesh on any axis.
 - **The model must see the GLB's own vertex array.** Load the mesh with anything that welds or reorders vertices and the weights come back describing a different mesh, which looks like a rig that is subtly, unfixably wrong rather than an error.
 - glTF's first `JOINTS_0`/`WEIGHTS_0` pair holds four influences and most engines read only that set. The model returns up to nine per vertex and rows that sum to about 0.95, so both the cut and the rescale are required. Skip the rescale and the mesh shrinks toward the origin as soon as anything moves.
 - A skinned mesh's node transform is ignored by the spec: vertices are taken to be in skin space. A leftover transform on that node makes the character jump the moment it is bound, so the skinned node is lifted to the scene root and stripped.

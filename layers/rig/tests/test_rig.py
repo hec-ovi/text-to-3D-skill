@@ -457,6 +457,40 @@ def test_a_prop_is_refused_rather_than_given_hips(server, tmp_path):
     assert list(tmp_path.glob("*-rigged.glb")) == []
 
 
+def test_a_skeleton_in_the_wrong_coordinate_frame_is_refused(server, tmp_path):
+    """The bug this exists for: the model normalises, so its skeleton is scaled.
+
+    Left unmapped, a character 0.98 units tall got a skeleton 1.69 tall, and
+    binding a mesh to a skeleton bigger than itself squashes it. What came out
+    were short, wide characters with folded knees, and nothing said so.
+    """
+    data = viking()
+    oversized = {"parents": data["parents"],
+                 "positions": [[c * 40 for c in p] for p in data["positions"]]}
+    stub = server(skeleton=oversized, vertex_count=8)
+    path = write_glb(tmp_path)
+
+    proc = run(["--glb", path, "--out-dir", str(tmp_path), "--endpoint", stub.endpoint])
+
+    assert proc.returncode == 1
+    error = json.loads(proc.stderr)
+    assert error["code"] == "MODEL_FAILED"
+    assert "coordinate frame" in error["message"]
+    assert list(tmp_path.glob("*-rigged.glb")) == [], "a squashed rig was written anyway"
+
+
+def test_a_skeleton_that_fits_its_mesh_is_accepted(server, tmp_path):
+    """A bone may sit slightly outside the surface; the guard is not anatomy police."""
+    data = viking()
+    # The fixture's skeleton spans about 1.16 x 1.69 x 0.34, and the test mesh
+    # is built to be comfortably larger than that.
+    stub = server(skeleton=data, vertex_count=8)
+    path = write_glb(tmp_path, vertices=8, triangles=4)
+
+    proc = run(["--glb", path, "--out-dir", str(tmp_path), "--endpoint", stub.endpoint])
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_weights_for_the_wrong_vertex_count_are_refused(server, tmp_path):
     stub = server(vertex_count=3)
     path = write_glb(tmp_path, vertices=8)
