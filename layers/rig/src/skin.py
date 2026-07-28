@@ -43,14 +43,26 @@ def attach(glb, positions, parents, names, joints, weights, spans):
     nodes = gltf.setdefault("nodes", [])
     first_joint = len(nodes)
 
-    # A joint node carries its transform relative to its parent, and glTF wants
-    # it column-major. The rest pose is rigid, so translation alone would do,
-    # but a matrix keeps this correct if the model ever predicts a rotated bone.
+    # A joint node carries its transform relative to its parent, written as
+    # translation/rotation/scale rather than as a matrix. That is a hard
+    # requirement, not a preference: glTF forbids animating the TRS properties
+    # of a node that defines a matrix, so a skeleton written with matrices
+    # validates right up until it is given a clip, and then reports one error
+    # per animated channel.
     globals_ = [sk.translation_matrix(p) for p in positions]
     locals_ = sk.local_matrices(globals_, parents)
 
     for index, name in enumerate(names):
-        nodes.append({"name": name, "matrix": sk.column_major(locals_[index])})
+        translation, rotation, scale = sk.decompose(locals_[index])
+        node = {"name": name}
+        # Only what differs from the default, so the file says what it means.
+        if any(abs(v) > 1e-9 for v in translation):
+            node["translation"] = list(translation)
+        if abs(rotation[3] - 1.0) > 1e-9 or any(abs(v) > 1e-9 for v in rotation[:3]):
+            node["rotation"] = list(rotation)
+        if any(abs(v - 1.0) > 1e-9 for v in scale):
+            node["scale"] = list(scale)
+        nodes.append(node)
 
     for index, parent in enumerate(parents):
         if parent is not None and parent >= 0:

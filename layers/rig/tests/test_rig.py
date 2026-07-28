@@ -359,6 +359,33 @@ def test_a_nested_mesh_node_is_lifted_to_the_scene_root(server, tmp_path):
         assert mesh_node not in node.get("children", [])
 
 
+def test_joint_nodes_use_trs_so_they_can_be_animated(server, tmp_path):
+    """glTF forbids animating the TRS of a node that defines a matrix.
+
+    Writing joints as matrices parses back fine and looks correct until a clip
+    targets one, and then the Khronos validator reports one error per animated
+    channel. It found eighteen here before this was fixed, which is exactly the
+    class of thing a round-trip through our own reader cannot catch.
+    """
+    stub = server(vertex_count=8)
+    path = write_glb(tmp_path)
+
+    proc = run(["--glb", path, "--out-dir", str(tmp_path), "--endpoint", stub.endpoint])
+    assert proc.returncode == 0, proc.stderr
+
+    rigged = Glb.parse(open(json.loads(proc.stdout)["glb"]["uri"], "rb").read())
+    joint_nodes = set(rigged.gltf["skins"][0]["joints"])
+    for index in joint_nodes:
+        assert "matrix" not in rigged.gltf["nodes"][index], \
+            "a joint written as a matrix cannot carry a clip"
+
+    animated = {channel["target"]["node"]
+                for animation in rigged.gltf["animations"]
+                for channel in animation["channels"]}
+    assert animated, "nothing is animated"
+    assert animated <= joint_nodes, "a clip targets something that is not a joint"
+
+
 def test_no_animate_skins_and_stops(server, tmp_path):
     stub = server(vertex_count=8)
     path = write_glb(tmp_path)

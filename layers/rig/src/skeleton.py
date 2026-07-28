@@ -269,6 +269,50 @@ def local_matrices(globals_, parents):
     return locals_
 
 
+def decompose(m):
+    """A rigid 4x4 into (translation, rotation quaternion, scale).
+
+    Joint nodes have to be written as translation/rotation/scale rather than as
+    a matrix, and this is not a stylistic choice: glTF forbids animating the
+    TRS properties of a node that defines a matrix, so a skeleton written with
+    matrices validates until the moment it is given a clip and then does not.
+    The Khronos validator says so in as many words, eighteen times.
+    """
+    translation = (m[0][3], m[1][3], m[2][3])
+    columns = [[m[r][c] for r in range(3)] for c in range(3)]
+    scale = tuple(math.sqrt(sum(v * v for v in col)) or 1.0 for col in columns)
+    rotation = [[m[r][c] / scale[c] for c in range(3)] for r in range(3)]
+
+    # Shepperd's method: pick the branch with the largest denominator, because
+    # the obvious one loses precision as the trace approaches -1.
+    trace = rotation[0][0] + rotation[1][1] + rotation[2][2]
+    if trace > 0:
+        s = math.sqrt(trace + 1.0) * 2
+        w = 0.25 * s
+        x = (rotation[2][1] - rotation[1][2]) / s
+        y = (rotation[0][2] - rotation[2][0]) / s
+        z = (rotation[1][0] - rotation[0][1]) / s
+    elif rotation[0][0] > rotation[1][1] and rotation[0][0] > rotation[2][2]:
+        s = math.sqrt(1.0 + rotation[0][0] - rotation[1][1] - rotation[2][2]) * 2
+        w = (rotation[2][1] - rotation[1][2]) / s
+        x = 0.25 * s
+        y = (rotation[0][1] + rotation[1][0]) / s
+        z = (rotation[0][2] + rotation[2][0]) / s
+    elif rotation[1][1] > rotation[2][2]:
+        s = math.sqrt(1.0 + rotation[1][1] - rotation[0][0] - rotation[2][2]) * 2
+        w = (rotation[0][2] - rotation[2][0]) / s
+        x = (rotation[0][1] + rotation[1][0]) / s
+        y = 0.25 * s
+        z = (rotation[1][2] + rotation[2][1]) / s
+    else:
+        s = math.sqrt(1.0 + rotation[2][2] - rotation[0][0] - rotation[1][1]) * 2
+        w = (rotation[1][0] - rotation[0][1]) / s
+        x = (rotation[0][2] + rotation[2][0]) / s
+        y = (rotation[1][2] + rotation[2][1]) / s
+        z = 0.25 * s
+    return translation, (x, y, z, w), scale
+
+
 def quaternion_from_axis(axis, angle):
     """A rotation as glTF spells it: x, y, z, w."""
     length = math.sqrt(sum(c * c for c in axis)) or 1.0
