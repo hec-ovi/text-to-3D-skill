@@ -457,6 +457,68 @@ describe('motion', () => {
 })
 
 describe('render controls', () => {
+  // The stylesheet shows them off [data-view][data-mode][data-loaded]; jsdom
+  // loads no stylesheet, so the attributes are what a test can assert.
+  const app = () => document.getElementById('app')
+
+  test('they sit in the footer, under the render, not in the top bar', async () => {
+    serveModels([BELL])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(document.querySelector('.statusbar #render-controls')).toBeTruthy()
+    expect(document.querySelector('.topbar #render-controls')).toBe(null)
+    expect(document.querySelector('.viewer-bar #render-controls')).toBe(null)
+    // The file name moved the other way: into the frame it names.
+    expect(document.querySelector('.viewer-bar #current-name')).toBeTruthy()
+    expect(document.querySelector('.topbar #current-name')).toBe(null)
+    expect(screen.getByRole('group', { name: /render controls/i })).toBeTruthy()
+  })
+
+  test('there is a render to control only on the turntable', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL])
+    const ui = mount()
+    await ui.refresh()
+
+    // The gallery is a sheet of stills: auto rotate has nothing to turn.
+    expect(app().dataset.view).toBe('gallery')
+    expect(app().dataset.loaded).toBe('true')
+
+    await user.click(screen.getByRole('button', { name: 'Single' }))
+    expect(app().dataset.view).toBe('single')
+    expect(app().dataset.mode).toBe('model')
+  })
+
+  test('an unreadable file leaves nothing to control', async () => {
+    serveModels([model('broken.glb', { readable: false, triangles: undefined })])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(app().dataset.loaded).toBe('false')
+  })
+
+  test('an empty directory leaves nothing to control', async () => {
+    serveModels([])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(app().dataset.loaded).toBe('false')
+  })
+
+  test('selecting a readable model after an unreadable one brings them back', async () => {
+    const user = userEvent.setup()
+    serveModels([model('broken.glb', { readable: false, triangles: undefined }), HELMET])
+    const ui = mount()
+    await ui.refresh()
+    expect(app().dataset.loaded).toBe('false')
+
+    await user.click(screen.getByRole('option', { name: /helmet/i }))
+
+    expect(app().dataset.loaded).toBe('true')
+    expect(app().dataset.view).toBe('single')
+  })
+
   test('the grid checkbox reports to the viewer both ways', async () => {
     const user = userEvent.setup()
     const onGridChange = vi.fn()
@@ -675,7 +737,7 @@ describe('names a person can read', () => {
     expect(card.querySelector('.sub').textContent).toContain('7.7k tris')
   })
 
-  test('the status bar still spells the file name out in full', async () => {
+  test('the viewer bar still spells the file name out in full', async () => {
     serveModels([model('female-warrior-9ab21c04-r1024-rigged.glb')])
     const ui = mount()
     await ui.refresh()

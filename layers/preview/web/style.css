@@ -68,12 +68,16 @@ html, body {
 
 /* ---- controls ----------------------------------------------------------- */
 
+/* Every hover on the page moves on the same 90ms ease, and every one of them
+   moves at least two properties: a background alone at this contrast is a
+   change you can measure and not one you can feel, which is what made the old
+   controls read as flat pictures of buttons. Colour and border move with it. */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 26px;
-  padding: 0 9px;
+  padding: 0 10px;
   font: inherit;
   font-size: 12px;
   color: var(--text-2);
@@ -82,9 +86,15 @@ html, body {
   border-radius: var(--r-1);
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 90ms ease, border-color 90ms ease, color 90ms ease;
 }
-.btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-2); color: var(--text); }
-.btn:active:not(:disabled) { background: var(--sunken); }
+.btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--line-2);
+}
+.btn:hover:not(:disabled) .i { color: var(--accent); }
+.btn:active:not(:disabled) { background: var(--sunken); border-color: var(--accent-line); }
 .btn:disabled { color: var(--text-3); cursor: default; }
 
 .btn-quiet {
@@ -112,8 +122,11 @@ html, body {
   background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-1);
+  transition: border-color 90ms ease;
 }
+.field:hover { border-color: var(--line-2); }
 .field:focus-within { border-color: var(--accent-line); }
+.field:focus-within .i { color: var(--accent); }
 .field input {
   width: 100%;
   min-width: 0;
@@ -123,6 +136,11 @@ html, body {
   color: var(--text);
   background: none;
   border: 0;
+  /* A search input is the one control a browser rounds on its own, and one
+     rounded box in a page of square ones is the corner everybody sees. */
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 0;
   outline: none;
 }
 .field input::placeholder { color: var(--text-3); }
@@ -148,22 +166,46 @@ html, body {
   cursor: pointer;
 }
 .seg button + button { box-shadow: inset 1px 0 0 var(--line); }
-.seg button:hover { color: var(--text-2); }
-.seg button[aria-pressed="true"] { color: var(--text); background: var(--surface-3); }
+.seg button { transition: background-color 90ms ease, color 90ms ease; }
+.seg button:hover { color: var(--text); background: var(--surface-3); }
+.seg button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--surface-3);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
 .seg button[aria-pressed="true"] .i { color: var(--accent); }
 
+/* A checkbox with a word beside it is a form field, and five of them in a row
+   under a render read as a settings dialog somebody forgot to close. As a chip
+   with a border it is a control: it has a hit area you can see before you aim
+   at it, an obvious hover, and an on state that does not depend on spotting a
+   13px tick. The input stays a real checkbox, so it stays one to a screen
+   reader and to the keyboard. */
 .toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px 0 8px;
   font-size: 12px;
   color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   white-space: nowrap;
   user-select: none;
   cursor: pointer;
+  transition: background-color 90ms ease, border-color 90ms ease, color 90ms ease;
 }
-.toggle:hover { color: var(--text); }
-.toggle:has(input:checked) { color: var(--text); }
+.toggle:hover { color: var(--text); background: var(--surface-3); border-color: var(--line-2); }
+.toggle:has(input:checked) {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.toggle:has(input:focus-visible) {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
 
 input[type="checkbox"] {
   appearance: none;
@@ -226,15 +268,20 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- top bar ------------------------------------------------------------ */
 
+/* Two clusters and the gap between them: where you are on the left, what you
+   are looking for on the right. The 14px gap inside a cluster against the
+   spacer between them is what makes them read as two groups instead of six
+   evenly spaced widgets, which is what the bar was. */
 .topbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   height: var(--bar);
-  padding: 0 10px;
+  padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
+.topbar .field { margin-left: 0; }
 
 .brand {
   display: inline-flex;
@@ -249,26 +296,11 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   border-radius: var(--r-1);
   cursor: pointer;
 }
-.brand:hover { background: var(--surface-2); border-color: var(--line); }
+.brand { transition: background-color 90ms ease, border-color 90ms ease; }
+.brand:hover { background: var(--surface-2); border-color: var(--line-2); }
 .brand .i { align-self: center; color: var(--accent); stroke-width: 1.15; }
 .brand-name { font-weight: 650; font-size: 13px; letter-spacing: 0.01em; }
 .brand-sub { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; color: var(--text-3); }
-
-/* The file on the turntable, named where the eye starts rather than in the
-   corner: the status line already carries the loader's own report of it. */
-.topbar .rule { height: 18px; }
-/* Nothing loaded yet: no name, so no divider either. */
-.topbar .rule:has(+ .current:empty) { display: none; }
-.topbar .current {
-  flex: 0 1 auto;
-  min-width: 0;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 /* ---- body --------------------------------------------------------------- */
 
@@ -363,8 +395,14 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   border-radius: var(--r-1);
   cursor: pointer;
 }
-.card:hover { background: var(--surface-2); }
-.card.selected {
+/* Hover gets the same left bar the selection uses, one step quieter. Twenty
+   rows that only change background by six values of grey give the pointer no
+   idea which row it is on; the bar is the part you see without looking. */
+.card { transition: background-color 90ms ease, box-shadow 90ms ease; }
+.card:hover { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--line-2); }
+.card:hover .name { color: var(--text); }
+.card.selected,
+.card.selected:hover {
   background: var(--accent-soft);
   box-shadow: inset 2px 0 0 var(--accent);
 }
@@ -449,7 +487,8 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   border-radius: var(--r-1);
   cursor: pointer;
 }
-.clip:hover { background: var(--surface-2); color: var(--text); }
+.clip { transition: background-color 90ms ease, box-shadow 90ms ease, color 90ms ease; }
+.clip:hover { background: var(--surface-2); color: var(--text); box-shadow: inset 2px 0 0 var(--line-2); }
 .clip.selected {
   color: var(--text);
   background: var(--accent-soft);
@@ -467,15 +506,29 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   grid-template-rows: auto 1fr;
 }
 
+/* Tabs on the left, the file they are showing on the right. Nothing else: the
+   controls that used to share this strip are under the render now, which is
+   also where a hand already is when it wants them. */
 .viewer-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: var(--bar);
-  padding: 0 10px 0 0;
+  padding: 0 12px 0 0;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
+}
+
+.viewer-bar .current {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tabs { display: flex; align-self: stretch; }
@@ -492,21 +545,44 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   margin-bottom: -1px;
   cursor: pointer;
 }
-.tabs button:hover:not(:disabled) { color: var(--text-2); }
+.tabs button { transition: color 90ms ease, background-color 90ms ease, border-color 90ms ease; }
+.tabs button:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .tabs button:disabled { color: #454b54; cursor: default; }
 
-/* Render controls belong in the frame, not floating over the render. */
+/* Render controls, in the footer directly under the render they act on.
+   They exist only when there is something to control: not on the contact
+   sheet, not over the source PNG, not with an unreadable file selected. Five
+   greyed-out widgets say the page is broken; no widgets say there is nothing
+   to set here yet. */
 .toolbar {
-  display: flex;
+  display: none;
   align-items: center;
-  gap: 11px;
-  margin-left: auto;
-  padding: 5px 0;
+  gap: 8px;
   flex-wrap: wrap;
 }
-/* Wireframe and grid mean nothing while the source PNG is on screen. */
-#app[data-mode="image"] .toolbar { display: none; }
+#app[data-view="single"][data-mode="model"][data-loaded="true"] .toolbar { display: flex; }
+
+.slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  transition: border-color 90ms ease;
+}
+.slider:hover { border-color: var(--line-2); }
+/* The slider had an aria-label and nothing on screen, so a mouse had to
+   discover it by dragging. */
+.slider .cap {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.slider:hover .cap { color: var(--text-2); }
 
 .panel { position: relative; min-height: 0; min-width: 0; }
 
@@ -589,7 +665,9 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   background: transparent;
   z-index: 1;
 }
+.tile { transition: background-color 90ms ease, border-color 90ms ease; }
 .tile:hover { background: var(--surface-2); border-color: var(--line-2); }
+.tile:hover .name { color: var(--text); }
 .tile:hover::before,
 .tile:focus-visible::before { background: var(--accent); }
 
@@ -609,17 +687,22 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- status bar --------------------------------------------------------- */
 
+/* The footer is now two things: what you can change about the render, and what
+   the render is. It grew from a 28px status line to a 40px bar to hold the
+   controls at the same 26px height they have everywhere else, rather than
+   shrinking them into a strip nobody can hit. */
 .statusbar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-height: 28px;
-  padding: 3px 12px;
+  gap: 12px;
+  min-height: 40px;
+  padding: 5px 12px;
   font-size: 11.5px;
   background: var(--surface);
   border-top: 1px solid var(--line);
   flex-wrap: wrap;
 }
+.statusbar .rule { height: 18px; }
 
 dl#stats {
   display: flex;
@@ -670,9 +753,10 @@ output[data-kind="empty"] { color: var(--text-3); }
 }
 
 @media (max-width: 940px) {
-  .toolbar { gap: 9px; }
+  .toolbar { gap: 6px; }
   input[type="range"] { width: 64px; }
-  .statusbar .current { max-width: 100%; }
+  .toggle { padding: 0 8px 0 7px; }
+  .viewer-bar .current { display: none; }
 }
 
 /* Narrower than this the sidebar still stays: losing the list is what made the

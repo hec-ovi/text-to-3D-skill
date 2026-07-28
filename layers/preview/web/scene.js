@@ -23,7 +23,10 @@ export function createViewer(container, { quality = true } = {}) {
   renderer.toneMappingExposure = EXPOSURE
   // A model floating with no contact point reads as a render, not an object.
   renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFShadowMap
+  // PCFSoft, not PCF. The floor's whole job is to say the model is standing on
+  // something, and a shadow with a hard edge says the opposite: it reads as a
+  // decal. The soft filter costs a wider tap pattern per fragment on one light.
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   container.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()

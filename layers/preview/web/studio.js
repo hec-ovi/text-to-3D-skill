@@ -107,20 +107,58 @@ function environmentScene() {
  * ambient-occlusion pass reads a depth buffer that transparent surfaces do not
  * write to, so a see-through floor takes no contact shadow from the model
  * standing on it, which is the one thing the floor is there for.
+ *
+ * The ramp is squared rather than linear in the smoothstep. A pool that holds
+ * its brightness out to the rim and then drops reads as a grey plate with the
+ * model parked on it; falling away immediately reads as light.
  */
-function fadingDisc(radius, segments = 96, rings = 24) {
+function fadingDisc(radius, segments = 128, rings = 96) {
   const geometry = new THREE.RingGeometry(0, radius, segments, rings)
   const position = geometry.attributes.position
   const colours = new Float32Array(position.count * 3)
   for (let i = 0; i < position.count; i++) {
     const r = Math.hypot(position.getX(i), position.getY(i)) / radius
-    // Held flat under the model, then rolled off, so the fade never reads as a
-    // circle drawn on the floor.
-    const t = 1 - THREE.MathUtils.smoothstep(r, 0.16, 1.0)
+    const t = (1 - THREE.MathUtils.smoothstep(r, 0.02, 0.92)) ** 2
     colours[i * 3] = colours[i * 3 + 1] = colours[i * 3 + 2] = t
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3))
   return geometry
+}
+
+/**
+ * Fine monochrome grain, generated into a canvas rather than downloaded.
+ *
+ * Two jobs, one texture. A floor of one flat colour under a smooth ramp is the
+ * single thing that made the ground read as coloured plastic: real surfaces
+ * carry high-frequency detail, and without any the eye has nothing to focus on
+ * and reads the whole disc as one plate. It is also the dither. An eight-bit
+ * canvas holds about 256 steps, a ramp this wide crosses far fewer than that
+ * across a 1080p viewport, and the result is concentric banding rings; grain of
+ * roughly one step breaks the boundary between two bands into noise, which is
+ * the same trick print uses and is invisible at this amplitude.
+ */
+function grainTexture(size = 256, amplitude = 0.055) {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const context = canvas.getContext('2d')
+  const image = context.createImageData(size, size)
+  for (let i = 0; i < size * size; i++) {
+    // Two samples averaged: uniform noise is harsh and its texture reads as
+    // sensor grain, while something nearer a bell curve reads as a surface.
+    const n = (Math.random() + Math.random()) / 2
+    const value = Math.round(255 * (1 - amplitude + n * amplitude * 2))
+    image.data[i * 4] = image.data[i * 4 + 1] = image.data[i * 4 + 2] = value
+    image.data[i * 4 + 3] = 255
+  }
+  context.putImageData(image, 0, 0)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(24, 24)
+  // The grain is a material property, not a colour to be tone-mapped: it
+  // multiplies the base colour, so it stays in linear space.
+  texture.colorSpace = THREE.NoColorSpace
+  return texture
 }
 
 /**
@@ -163,14 +201,26 @@ export function buildStudio(scene, renderer, { floor = true, backdrop = true } =
           vDir = normalize(position);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
+      // The dither is not decoration. This gradient crosses a handful of
+      // eight-bit steps over a whole screen height, and an eight-bit step
+      // spread over two hundred pixels is a visible edge: the backdrop came out
+      // as four or five stacked bands, which is the look of a cheap gradient
+      // wallpaper. Jittering each pixel by about one step scatters that edge
+      // into noise the eye integrates back to the smooth ramp. It is
+      // multiplicative so the amplitude tracks the local value, which is what
+      // keeps it invisible up near the top and effective down in the dark.
       fragmentShader: `
         uniform vec3 top, middle, bottom;
         varying vec3 vDir;
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
         void main() {
           float h = vDir.y;
           vec3 c = h > 0.02
             ? mix(middle, top, smoothstep(0.02, 0.75, h))
             : mix(middle, bottom, smoothstep(0.02, -0.4, h));
+          c *= 1.0 + (hash(gl_FragCoord.xy) - 0.5) * 0.035;
           gl_FragColor = vec4(c, 1.0);
         }`,
     })
@@ -194,19 +244,28 @@ export function buildStudio(scene, renderer, { floor = true, backdrop = true } =
     // black removes the grazing sheen that a near-horizontal floor otherwise
     // reflects back at the camera. What is left is diffuse from three lights,
     // which is exactly what a shadow can cut into.
+    // Darker than it looks: this is multiplied by the vertex ramp, so 0x2a303c
+    // is the brightest the pool ever gets, directly under the model, and the
+    // previous 0x363d4c held that value most of the way to a nine-unit rim.
+    // Bright ground competes with the asset, and the asset has to win.
+    const grain = grainTexture()
     const material = new THREE.MeshPhongMaterial({
-      color: 0x363d4c,
+      color: 0x2a303c,
       specular: 0x000000,
       shininess: 0,
       reflectivity: 0,
       vertexColors: true,
+      map: grain,
     })
-    ground = new THREE.Mesh(fadingDisc(9), material)
+    // Six units, not nine. The model is framed into 1.4, so nine units of lit
+    // floor put the horizon far outside the frame and filled the lower half of
+    // every render with grey.
+    ground = new THREE.Mesh(fadingDisc(6), material)
     ground.name = 'ground'
     ground.rotation.x = -Math.PI / 2
     ground.receiveShadow = true
     scene.add(ground)
-    disposables.push(ground.geometry, material)
+    disposables.push(ground.geometry, material, grain)
   }
 
   // Three-point, matching the environment so the specular and the shadow agree
@@ -226,13 +285,17 @@ export function buildStudio(scene, renderer, { floor = true, backdrop = true } =
   const key = new THREE.DirectionalLight(0xfff4e8, 3.6)
   key.position.set(4.96, 3.9, 0.61)
   key.castShadow = true
-  key.shadow.mapSize.set(2048, 2048)
+  // 3072, with the renderer on PCFSoftShadowMap. A hard-edged black ellipse is
+  // the single loudest tell that a floor is fake: nothing outdoors or in a
+  // studio casts one, because every real source has width. PCFSoft blurs by a
+  // fixed texel radius, so the penumbra is bought with map resolution rather
+  // than with shadow.radius, which that filter ignores.
+  key.shadow.mapSize.set(3072, 3072)
   // normalBias, not bias: a marching-cubes surface is curved everywhere, and a
   // constant depth bias either leaves acne on the curve or peels the contact
   // shadow off the floor. Offsetting along the normal fixes both.
   key.shadow.normalBias = 0.02
   key.shadow.bias = -0.0004
-  key.shadow.radius = 1.5
   scene.add(key)
 
   const fill = new THREE.DirectionalLight(0xbfd0ff, 0.45)

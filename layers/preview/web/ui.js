@@ -139,6 +139,14 @@ const ICON = {
 // and the turntable, so the list is on screen whatever you are doing and the
 // two layouts read as one page rather than two.
 //
+// The top bar carries what is true of the whole page and nothing else: where
+// you are, and what you are looking through. It used to also hold the loaded
+// file's name and the render controls, which is why it read as a row of
+// unrelated widgets: three scopes competing for one strip of pixels, and the
+// controls sat there greyed out on the gallery where there is no render to
+// control. The name now sits in the frame it names, and the controls live in
+// the footer under the render, appearing only when there is one.
+//
 // The list is the only `listbox` on the page. Sheet tiles are plain buttons
 // carrying `aria-current`, because a second listbox over the same models would
 // be a second selection for a screen reader to reconcile with the first.
@@ -153,8 +161,6 @@ const LAYOUT = `
     <button id="view-single" type="button" aria-pressed="false">${ICON.frame}Single</button>
   </div>
 
-  <span class="rule"></span>
-  <span class="current" id="current-name"></span>
   <span class="spacer"></span>
 
   <div class="field">
@@ -196,15 +202,7 @@ const LAYOUT = `
           <button id="tab-model" type="button" role="tab" aria-selected="true">Model</button>
           <button id="tab-image" type="button" role="tab" aria-selected="false">Image</button>
         </div>
-        <div class="toolbar" id="render-controls">
-          <label class="toggle"><input id="autorotate" type="checkbox" checked><span>Auto rotate</span></label>
-          <input id="speed" type="range" min="0" max="6" step="0.2" value="0.6" aria-label="Rotation speed">
-          <span class="rule"></span>
-          <label class="toggle"><input id="wireframe" type="checkbox"><span>Wireframe</span></label>
-          <label class="toggle"><input id="grid" type="checkbox"><span>Grid</span></label>
-          <label class="toggle"><input id="quality" type="checkbox" checked><span>Quality</span></label>
-          <button id="reset-view" class="btn" type="button">${ICON.recenter}Reset view</button>
-        </div>
+        <span class="current" id="current-name"></span>
       </div>
 
       <div class="panel" id="panel-model" role="tabpanel" aria-label="Model">
@@ -220,6 +218,20 @@ const LAYOUT = `
 </div>
 
 <footer class="statusbar">
+  <div class="toolbar" id="render-controls" role="group" aria-label="Render controls">
+    <label class="toggle"><input id="autorotate" type="checkbox" checked><span>Auto rotate</span></label>
+    <span class="slider">
+      <span class="cap">Speed</span>
+      <input id="speed" type="range" min="0" max="6" step="0.2" value="0.6" aria-label="Rotation speed">
+    </span>
+    <span class="rule"></span>
+    <label class="toggle"><input id="wireframe" type="checkbox"><span>Wireframe</span></label>
+    <label class="toggle"><input id="grid" type="checkbox"><span>Grid</span></label>
+    <label class="toggle"><input id="quality" type="checkbox" checked><span>Quality</span></label>
+    <button id="reset-view" class="btn" type="button">${ICON.recenter}Reset view</button>
+    <span class="rule"></span>
+  </div>
+
   <dl id="stats"></dl>
   <span class="spacer"></span>
   <output id="status" role="status">Loading…</output>
@@ -294,8 +306,23 @@ export function mountUi(root, options = {}) {
   let playing = true
   root.dataset.view = layout
   root.dataset.mode = mode
+  root.dataset.loaded = 'false'
   el.viewGallery.setAttribute('aria-pressed', String(layout === 'gallery'))
   el.viewSingle.setAttribute('aria-pressed', String(layout === 'single'))
+
+  /**
+   * Whether there is a render for the footer controls to control.
+   *
+   * The stylesheet keys off this, plus the view and the tab: auto rotate on the
+   * contact sheet, or over the source PNG, or with an unreadable file selected,
+   * is a control wired to nothing. Disabling them would leave five dead widgets
+   * on screen saying the page is broken; they are simply not there until they
+   * do something. The attribute is the assertable part, because jsdom loads no
+   * stylesheet and so cannot see the rule that acts on it.
+   */
+  function setLoaded(model) {
+    root.dataset.loaded = String(Boolean(model) && model.readable !== false)
+  }
 
   function setStatus(text, kind = 'info') {
     el.status.textContent = text
@@ -605,6 +632,7 @@ export function mountUi(root, options = {}) {
     if (!model) return
     selected = model
     markSelected()
+    setLoaded(model)
     el.currentName.textContent = model.name
     setStats(statsFor(model))
     showSource(model)
@@ -642,6 +670,7 @@ export function mountUi(root, options = {}) {
 
     if (!models.length) {
       selected = null
+      setLoaded(null)
       renderList()
       setStats([])
       el.currentName.textContent = ''
@@ -661,6 +690,7 @@ export function mountUi(root, options = {}) {
     if (wanted && !models.some((m) => m.id === wanted || m.name === wanted)) {
       selected = initial
       markSelected()
+      setLoaded(initial)
       el.currentName.textContent = initial.name
       setStats(statsFor(initial))
       showSource(initial)

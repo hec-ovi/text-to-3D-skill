@@ -31,7 +31,9 @@ export function createThumbnailer({ size = SIZE } = {}) {
   renderer.toneMapping = TONE_MAPPING
   renderer.toneMappingExposure = EXPOSURE
   renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFShadowMap
+  // The same filter the turntable uses. A card drawn with a harder shadow than
+  // the viewer gives is the mismatch this module exists to avoid.
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
   const scene = new THREE.Scene()
   const studio = buildStudio(scene, renderer)
