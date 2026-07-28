@@ -200,6 +200,7 @@ def _start_compose(request):
         "ComfyUI did not start",
         env=comfy_env,
     )
+    services = ["engine"] + (["rig"] if request["startRig"] else [])
     _run(
         docker
         + [
@@ -211,11 +212,11 @@ def _start_compose(request):
             "up",
             "-d",
             build_flag,
-            "engine",
-        ],
+        ]
+        + services,
         request["toolkitDir"],
         "START_FAILED",
-        "the resident Vulkan engine did not start",
+        "the resident model services did not start",
     )
 
 
@@ -315,6 +316,9 @@ def init_toolkit(raw_request):
         "comfyui": {"state": "ready", "endpoint": request["comfyEndpoint"]},
         "engine": {"state": "ready", "endpoint": request["engineEndpoint"]},
     }
+    if request["startRig"]:
+        _wait(request["rigEndpoint"].rstrip("/") + "/health", "rig", deadline)
+        services["rig"] = {"state": "ready", "endpoint": request["rigEndpoint"]}
     if request["startPreview"]:
         services["preview"] = _start_preview(request, deadline)
 
@@ -358,6 +362,9 @@ def _parser():
     parser.add_argument("--no-preview", action="store_true")
     parser.add_argument("--no-comfy-node", action="store_true",
                         help="start ComfyUI without the text-to-3d graph node")
+    parser.add_argument("--rig-endpoint")
+    parser.add_argument("--no-rig", action="store_true",
+                        help="skip the rig service, for a session that only makes meshes")
     return parser
 
 
@@ -373,6 +380,7 @@ def _request_from_args(args):
         "runtime_dir": "runtimeDir",
         "comfy_endpoint": "comfyEndpoint",
         "engine_endpoint": "engineEndpoint",
+        "rig_endpoint": "rigEndpoint",
         "preview_host": "previewHost",
         "preview_port": "previewPort",
         "timeout": "timeoutSeconds",
@@ -389,6 +397,8 @@ def _request_from_args(args):
         request["startPreview"] = False
     if args.no_comfy_node:
         request["comfyNode"] = False
+    if args.no_rig:
+        request["startRig"] = False
     return request
 
 

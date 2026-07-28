@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event'
 
 import {
   mountUi, pickInitial, filterModels, titleOf, tagsOf,
-  formatBytes, formatCount, formatShortCount, formatAge,
+  formatBytes, formatCount, formatAge,
 } from '../web/ui.js'
 import { model, serveModels, serveError, serveNetworkFailure } from './msw-server.js'
 
@@ -892,10 +892,6 @@ describe('pure helpers', () => {
     expect(formatBytes(-1)).toBe('?')
     expect(formatCount(140654)).toBe('140,654')
     expect(formatCount(undefined)).toBe('?')
-    expect(formatShortCount(842)).toBe('842')
-    expect(formatShortCount(3810)).toBe('3.8k')
-    expect(formatShortCount(147330)).toBe('147k')
-    expect(formatShortCount(1400000)).toBe('1.4M')
   })
 
   test('formatAge counts back from now', () => {

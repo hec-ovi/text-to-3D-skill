@@ -17,6 +17,17 @@
     "fetchModels": { "type": "boolean", "default": true },
     "buildImages": { "type": "boolean", "default": true },
     "startPreview": { "type": "boolean", "default": true },
+    "rigEndpoint": {
+      "type": "string",
+      "minLength": 1,
+      "default": "http://127.0.0.1:8191",
+      "description": "Base URL of the resident rig server."
+    },
+    "startRig": {
+      "type": "boolean",
+      "default": true,
+      "description": "Start and wait for the rig service. false for a session that only makes meshes; it holds a 1.6 GiB model."
+    },
     "comfyNode": {
       "type": "boolean",
       "default": true,

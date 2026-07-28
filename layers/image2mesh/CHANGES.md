@@ -98,4 +98,4 @@ Measured on the gfx1151 box, same input image and seed, res 512:
 | GLB | 4768688 B | **304428 B** |
 | engine time | 138.5 s | 136.8 s |
 
-**15.7x smaller for the same run time.** The time is the point worth noting: the simplifier still walks the 6.5 M face dual-grid mesh down round by round, and stopping at 4K instead of 150K saves a handful of rounds at the cheap end. What you buy is the file and everything downstream of it, not the generation. The result validates clean against the Khronos glTF-Validator: 3810 triangles, 2970 vertices, 3 textures, 0 errors and 0 warnings.
+**15.7x smaller for the same run time.** The time is the point: the simplifier still walks the 6.5 M face dual-grid mesh down round by round, and stopping at 4K instead of 150K saves a handful of rounds at the cheap end. What you buy is the file and everything downstream of it, not the generation. The result validates clean against the Khronos glTF-Validator: 3810 triangles, 2970 vertices, 3 textures, 0 errors and 0 warnings.

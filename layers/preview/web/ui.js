@@ -19,14 +19,6 @@ export function formatCount(n) {
   return Number.isFinite(n) ? n.toLocaleString('en-US') : '?'
 }
 
-/** Triangle counts get long fast, and a card line has room for three characters. */
-export function formatShortCount(n) {
-  if (!Number.isFinite(n)) return '?'
-  if (n < 1000) return String(n)
-  if (n < 1000000) return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`
-  return `${(n / 1000000).toFixed(1)}M`
-}
-
 /** "4 min ago" beats an ISO string when the point is which one is newest. */
 export function formatAge(iso, now = Date.now()) {
   const then = Date.parse(iso)

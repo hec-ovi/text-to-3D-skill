@@ -13,7 +13,8 @@
       "properties": {
         "comfyui": { "$ref": "#/$defs/service" },
         "engine": { "$ref": "#/$defs/service" },
-        "preview": { "$ref": "#/$defs/service" }
+        "preview": { "$ref": "#/$defs/service" },
+        "rig": { "$ref": "#/$defs/service" }
       }
     },
     "paths": {

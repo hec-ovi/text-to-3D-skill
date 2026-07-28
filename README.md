@@ -11,10 +11,11 @@
   </tr>
 </table>
 
-Type one subject description and get a textured static GLB generated locally on an AMD Strix Halo APU.
+Type one subject description and get a textured GLB generated locally on an AMD Strix Halo APU. A humanoid can then be rigged and given clips, on the same box, with no Blender.
 
 ```text
 prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB
+                                                  character ->  SkinTokens (ROCm) -> rigged GLB
 ```
 
 The screenshots above are four orders run through the toolkit: a red sports car, a sport motorcycle superbike, a humanoid figure, and a bonsai tree in a ceramic pot.
@@ -25,7 +26,7 @@ FLUX.2 klein creates one reference image through the existing ComfyUI ROCm stack
 
 The output envelope contains the GLB path, byte size, sha256, triangle count, and stage timings. The GLB is parsed before success is reported: its container, JSON and BIN chunks, and mesh data must be valid.
 
-This release produces static models. Blender, rigging, skeletons, and humanoid animation are outside the current toolkit.
+A generated humanoid can be rigged: SkinTokens predicts a skeleton and skin weights, the driver names the joints Mixamo's way from the shape of the tree, and `idle` and `walk` are solved against that skeleton. There is no retargeting step, which is where a walk cycle comes out backwards, and no Blender anywhere in it. Skinning is appended to the GLB rather than rebuilt from it, so the materials and textures TRELLIS baked are the ones that come out.
 
 ## Install the skill
 
@@ -52,7 +53,7 @@ The installed skill includes `scripts/init.py`. If it is not running from a chec
 - Docker with Compose and access to `/dev/dri` and `/dev/kfd`.
 - A configured sibling checkout of `comfyui-strix-docker`.
 - These ComfyUI weights under its models mount: `flux-2-klein-4b.safetensors`, `qwen_3_4b.safetensors`, and `flux2-vae.safetensors`.
-- About 20 GB for the ten TRELLIS.2 GGUF files.
+- About 20 GB for the ten TRELLIS.2 GGUF files, and 1.6 GB for the SkinTokens checkpoints if you want rigging.
 - Python 3.10 or newer. The drivers use only the standard library.
 
 ## Start the harness
@@ -61,7 +62,7 @@ The installed skill includes `scripts/init.py`. If it is not running from a chec
 python3 scripts/init.py
 ```
 
-`init` is safe to run again. It verifies or fetches the TRELLIS weights, builds and starts ComfyUI, starts the resident Vulkan engine, starts the preview server, and waits for all three health checks. Its stdout is one validated JSON result.
+`init` is safe to run again. It verifies or fetches the TRELLIS weights, builds and starts ComfyUI, starts the resident Vulkan engine and the rig service, starts the preview server, and waits for every health check. Its stdout is one validated JSON result. `--no-rig` skips the rig service for a session that only makes meshes.
 
 The default paths can be changed:
 
@@ -100,6 +101,16 @@ Useful starting points:
 - Vehicle or hero asset: 20K to 50K.
 
 Use resolution 1024 for full-body figures and 512 for compact props. A generated face works at gameplay distance, but the single-view reconstruction does not hold up as a portrait.
+
+## Rig a character
+
+```bash
+python3 layers/rig/src/rig.py --glb out/<character>-r1024.glb --out-dir out
+```
+
+Writes `<stem>-rigged.glb` with a Mixamo-named skeleton and `idle` and `walk`. Measured on the Radeon 8060S: 32 seconds to rig an 11K-vertex character into 34 joints. The output validates clean against the Khronos glTF-Validator.
+
+SkinTokens documents NVIDIA, CUDA 12.1+ and flash-attn. Its code needs none of that: there is no CUDA-only dependency and no compiled extension in it. Two things block it on AMD, and [`layers/rig/docker/`](layers/rig/docker/Dockerfile) handles both without editing upstream: a `flash_attn_interface` shim backed by torch SDPA, and one hardcoded `attn_implementation` argument rewritten to `sdpa`.
 
 ## Preview
 
@@ -140,6 +151,7 @@ The skill now starts the harness on demand through `init`, waits until the servi
 | Image to textured GLB | [`layers/image2mesh/CONTRACT.md`](layers/image2mesh/CONTRACT.md) |
 | Text-to-GLB stage order | [`layers/pipeline/CONTRACT.md`](layers/pipeline/CONTRACT.md) |
 | The ComfyUI node and one-graph workflow | [`layers/comfy/CONTRACT.md`](layers/comfy/CONTRACT.md) |
+| Skeleton, skinning and clips | [`layers/rig/CONTRACT.md`](layers/rig/CONTRACT.md) |
 | Local browser preview | [`layers/preview/CONTRACT.md`](layers/preview/CONTRACT.md) |
 
 Each layer validates JSON envelopes at its boundary and imports no sibling internals. Binary assets cross layers by path, media type, byte size, and sha256.
@@ -169,9 +181,9 @@ Measured on the Strix Halo host after a fresh build: init reached all three heal
 ## Limits
 
 - One subject per generation, not a multi-object scene.
-- Static GLBs only.
-- No Blender, rigging, skeleton, or animation path.
-- Vulkan GPU required. CPU fallback is refused.
+- Rigging is for humanoids. A prop is refused rather than given a spine.
+- Clips are generated, not hand-authored. They read as motion at gameplay distance and do not survive a close look; the skeleton is Mixamo-named so an authored pack plays on it without retargeting.
+- Vulkan GPU for the mesh, ROCm for the rig. The mesh engine refuses CPU fallback.
 
 ## License
 

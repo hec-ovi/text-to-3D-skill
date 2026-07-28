@@ -109,6 +109,7 @@ def base_args(tmp_path, comfy_endpoint, engine_endpoint):
         "10",
         "--no-fetch",
         "--no-build",
+        "--no-rig",
     ]
 
 
@@ -208,6 +209,47 @@ def test_missing_models_fail_before_services_start(tmp_path):
     assert error["code"] == "MODELS_MISSING"
     assert MODEL_FILES[-1] in error["detail"]
     assert not docker_log.exists()
+
+
+def test_the_rig_service_is_started_and_waited_on(tmp_path):
+    """SKILL.md tells an agent init starts it, so init has to start it."""
+    docker, docker_log = fake_docker(tmp_path)
+    env = dict(os.environ, T2M_DOCKER=str(docker), T2M_DOCKER_LOG=str(docker_log))
+    with ready_server() as comfy, ready_server() as engine, ready_server() as rig:
+        args = [a for a in base_args(tmp_path, comfy, engine) if a != "--no-rig"]
+        completed = subprocess.run(
+            [sys.executable, str(CLI), *args, "--no-preview", "--rig-endpoint", rig],
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=20,
+        )
+
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result["services"]["rig"]["state"] == "ready"
+    assert result["services"]["rig"]["endpoint"] == rig
+    assert "rig" in docker_log.read_text(encoding="utf-8")
+    assert "rig: ready" in completed.stderr
+
+
+def test_a_mesh_only_session_can_skip_the_rig(tmp_path):
+    """It holds a 1.6 GiB model that a session making props never touches."""
+    docker, docker_log = fake_docker(tmp_path)
+    env = dict(os.environ, T2M_DOCKER=str(docker), T2M_DOCKER_LOG=str(docker_log))
+    with ready_server() as comfy, ready_server() as engine:
+        completed = subprocess.run(
+            [sys.executable, str(CLI), *base_args(tmp_path, comfy, engine), "--no-preview"],
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=20,
+        )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "rig" not in json.loads(completed.stdout)["services"]
+    engine_up = [l for l in docker_log.read_text(encoding="utf-8").splitlines() if "up -d" in l]
+    assert engine_up and " rig" not in engine_up[-1]
 
 
 def test_launcher_reaches_the_toolkit_entry_point():

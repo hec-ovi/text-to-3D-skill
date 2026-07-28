@@ -1,11 +1,11 @@
 ---
 name: text-to-3d
-description: Initialize and operate a fully local text-to-3D toolkit that turns one subject description into a textured GLB, at full density or to a triangle budget, using FLUX.2 klein through ComfyUI and TRELLIS.2 on Vulkan. Use for starting the local generation harness, creating static 3D models, meshes, GLBs or glTF assets from words, preparing game or three.js assets, batching several models, or opening the local preview gallery.
+description: Initialize and operate a fully local text-to-3D toolkit that turns one subject description into a textured GLB, at full density or to a triangle budget, and can rig a generated character with a Mixamo-named skeleton and playable clips. Uses FLUX.2 klein through ComfyUI, TRELLIS.2 on Vulkan, and SkinTokens on ROCm. Use for starting the local generation harness, creating 3D models, meshes, GLBs or glTF assets from words, rigging or animating a generated character, preparing game or three.js assets, batching several models, or opening the local preview gallery.
 ---
 
 # text-to-3d
 
-Turn one described subject into one static GLB:
+Turn one described subject into one textured GLB, and a humanoid into a rigged one:
 
 ```text
 prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB
@@ -18,10 +18,12 @@ prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB
 | `init` | Start and verify the local harness | [Init](#init) |
 | `generate` | Generate one static GLB | [Generate](#generate) |
 | `budget` | Generate to a triangle budget | [Triangle budget](#budget) |
+| `rig` | Give a generated character a skeleton and clips | [Rig](#rig) |
 | `preview` | Inspect generated models | [Preview](#preview) |
 | `batch` | Generate several models efficiently | [Batch](#batch) |
 
-Do not use Blender or attempt rigging, skeletons, humanoid movement, or animation. A character request produces a static character model.
+Never use Blender. The rig path does not need it, and the retargeting that a
+Blender workflow implies is what puts a walk cycle in backwards.
 
 <a id="init"></a>
 ## Init
@@ -38,7 +40,7 @@ Init is idempotent. It:
 
 1. Verifies the ten TRELLIS.2 GGUFs and fetches missing files.
 2. Starts the sibling `comfyui-strix-docker` Compose stack.
-3. Builds and starts the resident Vulkan mesh engine.
+3. Builds and starts the resident Vulkan mesh engine and the rig service.
 4. Starts the local preview server.
 5. Waits for all health checks and prints one JSON result.
 
@@ -50,6 +52,7 @@ Useful overrides:
 python3 scripts/init.py --toolkit-dir /path/to/text-to-3D-skill
 python3 scripts/init.py --comfy-dir /path/to/comfyui-strix-docker
 python3 scripts/init.py --no-fetch --no-build
+python3 scripts/init.py --no-rig            # meshes only; the rig holds 1.6 GB
 ```
 
 <a id="generate"></a>
@@ -107,6 +110,29 @@ Starting points:
 
 Decimation runs before UV unwrap, so the texture is baked onto the simplified mesh.
 
+<a id="rig"></a>
+## Rig
+
+Give a generated character a skeleton, skin weights and clips. Humanoids only.
+
+```bash
+python3 layers/rig/src/rig.py \
+  --glb out/<character>-r1024.glb \
+  --out-dir out
+```
+
+The result is `<stem>-rigged.glb`, carrying a Mixamo-named skeleton and `idle`
+and `walk`. The mesh, its materials and its textures are untouched: skinning is
+appended to the file, not rebuilt from it.
+
+Requires the rig service, which `init` starts. A prop returns
+`NOT_A_CHARACTER`; that is the correct answer, not a failure to work around.
+
+| Flag | Default | Change it when |
+| --- | --- | --- |
+| `--no-animate` | Off | The caller brings its own clips and wants the skin only. |
+| `--max-influences N` | 4 | A target engine reads fewer than four bones per vertex. |
+
 <a id="preview"></a>
 ## Preview
 
@@ -146,10 +172,13 @@ Read the outer `code`, then `cause.code` when present.
 | `TEXT2IMAGE_FAILED` plus `MODEL_MISSING` | Check the ComfyUI models mount. |
 | `IMAGE2MESH_FAILED` plus `NO_VULKAN_DEVICE` | Check `/dev/dri` and the render group id. |
 | `IMAGE2MESH_FAILED` plus `GLB_INVALID` | Keep the output and report the engine bug. |
+| `NOT_A_CHARACTER` | The subject is not a humanoid. Ship it static. |
+| `MODEL_UNREACHABLE` from the rig | Re-run init and inspect the rig service. |
 
 ## Limits
 
 - One subject, not a multi-object scene.
-- Static meshes only. No animation, skeleton, rig, or Blender path.
+- Rigging is for humanoids. A prop is refused with `NOT_A_CHARACTER` rather than given a spine.
+- Clips are generated, not hand-animated: they read as motion at gameplay distance and do not survive a close look. The skeleton is Mixamo-named, so an authored clip pack plays on it without retargeting.
 - Faces hold up at gameplay distance, not as portrait assets.
-- Vulkan GPU required. The engine refuses silent CPU fallback.
+- Vulkan GPU for the mesh, ROCm for the rig. The mesh engine refuses silent CPU fallback.

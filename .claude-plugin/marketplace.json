@@ -4,22 +4,40 @@
     "name": "Hector Oviedo"
   },
   "metadata": {
-    "description": "Local text to static GLB generation on an AMD Strix Halo iGPU",
-    "version": "0.3.1"
+    "description": "Local text to textured GLB, plus humanoid rigging and clips, on an AMD Strix Halo iGPU",
+    "version": "0.4.0"
   },
   "plugins": [
     {
       "name": "text-to-3d",
       "source": "./plugins/text-to-3d",
-      "description": "Turns one subject description into a static textured GLB on a Strix Halo iGPU. The skill initializes ComfyUI, a resident Vulkan TRELLIS.2 engine, and the local preview gallery, then generates to an optional triangle budget.",
-      "version": "0.3.1",
+      "description": "Turns one subject description into a textured GLB on a Strix Halo iGPU, and rigs a generated humanoid with a Mixamo-named skeleton and playable clips. The skill initializes ComfyUI, a resident Vulkan TRELLIS.2 engine, a SkinTokens rig service on ROCm, and the local preview gallery.",
+      "version": "0.4.0",
       "author": {
         "name": "Hector Oviedo"
       },
       "homepage": "https://github.com/hec-ovi/text-to-3D-skill",
       "repository": "https://github.com/hec-ovi/text-to-3D-skill",
       "license": "MIT",
-      "keywords": ["3d", "gltf", "glb", "three-js", "trellis", "vulkan", "strix-halo", "text-to-3d", "low-poly", "agent-skills", "local-first", "comfyui", "flux"]
+      "keywords": [
+        "3d",
+        "gltf",
+        "glb",
+        "three-js",
+        "trellis",
+        "skintokens",
+        "vulkan",
+        "rocm",
+        "strix-halo",
+        "text-to-3d",
+        "auto-rigging",
+        "skeletal-animation",
+        "mixamo",
+        "agent-skills",
+        "local-first",
+        "comfyui",
+        "flux"
+      ]
     }
   ]
 }

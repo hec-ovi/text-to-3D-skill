@@ -12,7 +12,6 @@ of it: the mesh a person already looked at in the viewer is the same mesh
 afterwards, with two more vertex attributes on it.
 """
 
-import base64
 import json
 import struct
 
@@ -199,7 +198,3 @@ class Glb:
         if blob:
             body += struct.pack("<II", len(blob), CHUNK_BIN) + blob
         return struct.pack("<III", GLB_MAGIC, 2, 12 + len(body)) + body
-
-
-def data_uri(blob, media_type="application/octet-stream"):
-    return f"data:{media_type};base64," + base64.b64encode(blob).decode("ascii")

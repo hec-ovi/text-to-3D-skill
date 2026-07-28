@@ -46,5 +46,5 @@ Neither changes what is computed. Measured on the Radeon 8060S: model load 16 s,
 - A skinned mesh's node transform is ignored by the spec: vertices are taken to be in skin space. A leftover transform on that node makes the character jump the moment it is bound, so the skinned node is lifted to the scene root and stripped.
 - **Never author a full revolution as quaternion keys.** 360 degrees ends on the negated quaternion, which is the same orientation with every component flipped, and LINEAR interpolation blends the components straight through zero. There was a turn clip; this is why there is not.
 - A clip that does not start and end on the same pose stutters once per loop. There is a test.
-- The skeleton is only named when the tree reads as a humanoid. A chair gets `NOT_A_CHARACTER`, which is the honest answer: naming it `Hips` produces a rig that a walk cycle will then happily act on.
+- The skeleton is only named when the tree reads as a humanoid. A chair gets `NOT_A_CHARACTER`, because naming it `Hips` produces a rig that a walk cycle will then act on.
 - This container needs `/dev/kfd` and privileged, because it is ROCm. The mesh engine deliberately has neither. They are separate services for that reason among others.
