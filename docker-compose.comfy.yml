@@ -1,0 +1,28 @@
+# Overlay for the sibling comfyui-strix-docker stack.
+#
+#   docker compose --project-directory <comfy-dir> \
+#     -f <comfy-dir>/docker-compose.yml -f docker-compose.comfy.yml up -d
+#
+# `init` applies it, so this file is normally not run by hand. It adds three
+# things to a stack this repo does not own and does not modify:
+#
+#   the node      layers/comfy mounted read-only where ComfyUI looks for one
+#   the way out   the same output directory the preview server watches
+#   the route     host-gateway, so the container can reach the engine on the host
+#
+# The mount is read-only. ComfyUI writes nothing into a custom node, and a
+# writable mount of this repo inside a privileged container is a bad trade for
+# nothing.
+services:
+  comfyui:
+    volumes:
+      - ${T2M_TOOLKIT:?set T2M_TOOLKIT to the toolkit checkout}/layers/comfy:/app/ComfyUI/custom_nodes/text_to_3d:ro
+      - ${T2M_OUT_DIR:?set T2M_OUT_DIR to the output directory}:/app/ComfyUI/output/t2m
+    extra_hosts:
+      # Linux has no host.docker.internal by default, and the engine listens on
+      # the host's published 8189 rather than on a shared compose network:
+      # the two stacks are separate projects on purpose.
+      - "host.docker.internal:host-gateway"
+    environment:
+      - T2M_ENGINE=http://host.docker.internal:8189
+      - T2M_OUT_DIR=/app/ComfyUI/output/t2m

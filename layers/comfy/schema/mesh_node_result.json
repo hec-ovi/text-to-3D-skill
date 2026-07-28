@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "comfy/mesh_node_result.json",
+  "title": "MeshNodeResult",
+  "description": "Params out for the comfy layer. The GLB crosses by reference and has been structurally validated before this envelope is emitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "glb", "triangles", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "glb": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "mediaType", "byteSize", "checksum"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "const": "model/gltf-binary" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": {
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      }
+    },
+    "triangles": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Read out of the emitted GLB, not predicted from the request."
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": { "type": "string" },
+        "resolution": { "type": "integer" },
+        "seed": { "type": "integer" }
+      }
+    },
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  }
+}

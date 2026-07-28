@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "comfy/error.json",
+  "title": "ComfyNodeError",
+  "description": "Closed error set for the comfy layer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "message"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_REQUEST",
+        "ENGINE_UNREACHABLE",
+        "ENGINE_FAILED",
+        "TIMEOUT",
+        "OUTPUT_WRITE_FAILED",
+        "GLB_INVALID"
+      ]
+    },
+    "message": { "type": "string" },
+    "detail": { "type": "string" }
+  }
+}

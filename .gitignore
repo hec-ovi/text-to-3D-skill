@@ -47,3 +47,6 @@ layers/preview/package-lock.json
 
 # research store (local only)
 .research/
+
+# python caches inside the mounted comfy node
+layers/comfy/**/__pycache__/
