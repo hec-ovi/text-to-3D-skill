@@ -65,9 +65,13 @@ def free_port():
 def fake_docker(tmp_path):
     log = tmp_path / "docker.log"
     executable = tmp_path / "docker"
+    # The compose overlay is passed through the environment, so the stand-in
+    # records what it was handed as well as what it was called with.
     executable.write_text(
         "#!/bin/sh\n"
         "printf '%s\\n' \"$*\" >> \"$T2M_DOCKER_LOG\"\n"
+        "printf 'env T2M_TOOLKIT=%s T2M_OUT_DIR=%s\\n' \"$T2M_TOOLKIT\" \"$T2M_OUT_DIR\" "
+        ">> \"$T2M_DOCKER_LOG\"\n"
         "printf 'docker progress: %s\\n' \"$*\"\n"
         "exit 0\n",
         encoding="utf-8",
@@ -136,6 +140,52 @@ def test_cli_starts_compose_and_preview_end_to_end(tmp_path):
     assert "up -d --no-build" in commands
     assert "docker progress: compose version" in completed.stderr
     os.kill(result["services"]["preview"]["pid"], signal.SIGTERM)
+
+
+def test_comfyui_starts_with_the_graph_node_overlaid(tmp_path):
+    """The node is mounted by starting the sibling stack with the overlay on top."""
+    docker, docker_log = fake_docker(tmp_path)
+    env = dict(os.environ, T2M_DOCKER=str(docker), T2M_DOCKER_LOG=str(docker_log))
+    with ready_server() as comfy, ready_server() as engine:
+        args = base_args(tmp_path, comfy, engine)
+        completed = subprocess.run(
+            [sys.executable, str(CLI), *args, "--no-preview"],
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=20,
+        )
+
+    assert completed.returncode == 0, completed.stderr
+    commands = docker_log.read_text(encoding="utf-8")
+    overlay = str(ROOT / "docker-compose.comfy.yml")
+    assert overlay in commands, "ComfyUI was started without the node overlay"
+    # Relative host paths in a compose file resolve against the project
+    # directory, which here is the other repository, so both are absolute.
+    out_dir = str(Path(args[args.index("--out-dir") + 1]))
+    assert f"env T2M_TOOLKIT={ROOT} T2M_OUT_DIR={out_dir}" in commands
+    # The engine stack is this repo's own file and takes no overlay.
+    engine_up = [line for line in commands.splitlines() if "engine" in line]
+    assert engine_up and overlay not in engine_up[0]
+
+
+def test_the_overlay_can_be_declined(tmp_path):
+    docker, docker_log = fake_docker(tmp_path)
+    env = dict(os.environ, T2M_DOCKER=str(docker), T2M_DOCKER_LOG=str(docker_log))
+    with ready_server() as comfy, ready_server() as engine:
+        completed = subprocess.run(
+            [sys.executable, str(CLI), *base_args(tmp_path, comfy, engine),
+             "--no-preview", "--no-comfy-node"],
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=20,
+        )
+
+    assert completed.returncode == 0, completed.stderr
+    commands = docker_log.read_text(encoding="utf-8")
+    assert "docker-compose.comfy.yml" not in commands
+    assert "env T2M_TOOLKIT= T2M_OUT_DIR=" in commands
 
 
 def test_missing_models_fail_before_services_start(tmp_path):

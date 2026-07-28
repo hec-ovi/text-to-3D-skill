@@ -17,6 +17,11 @@
     "fetchModels": { "type": "boolean", "default": true },
     "buildImages": { "type": "boolean", "default": true },
     "startPreview": { "type": "boolean", "default": true },
+    "comfyNode": {
+      "type": "boolean",
+      "default": true,
+      "description": "Overlay the sibling ComfyUI stack with the text-to-3d custom node, the shared output directory and a host-gateway route to the engine. false starts ComfyUI exactly as its own project defines it."
+    },
     "timeoutSeconds": { "type": "integer", "minimum": 1, "default": 900 }
   }
 }

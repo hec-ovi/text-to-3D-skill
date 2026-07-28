@@ -10,7 +10,7 @@ Start and verify every service required to turn text into a static GLB and previ
 
 | Param | Schema | Preconditions |
 | --- | --- | --- |
-| `InitRequest` | [`schema/init_request.json`](schema/init_request.json) | `toolkitDir` is this repository, `comfyDir` contains the ComfyUI Compose stack, Docker can reach the GPU devices, and the configured paths are writable. Missing TRELLIS weights may be fetched when `fetchModels` is true. |
+| `InitRequest` | [`schema/init_request.json`](schema/init_request.json) | `toolkitDir` is this repository, `comfyDir` contains the ComfyUI Compose stack, Docker can reach the GPU devices, and the configured paths are writable. Missing TRELLIS weights may be fetched when `fetchModels` is true. When `comfyNode` is true, `docker-compose.comfy.yml` is present in `toolkitDir`. |
 
 Entry point: `python3 src/init.py`, CLI flags, or `--request <file|->`. Python 3.10+, standard library only.
 
@@ -43,8 +43,8 @@ Closed set, [`schema/error.json`](schema/error.json). Written to stderr as JSON,
 
 ## Dependencies
 
-- The sibling ComfyUI Compose project, treated only as a path and a health endpoint.
-- The root [`docker-compose.yml`](../../docker-compose.yml), which starts the resident image2mesh engine.
+- The sibling ComfyUI Compose project, treated only as a path and a health endpoint. Its file is read and never written: the graph node arrives as an overlay stacked on top of it, not as an edit to another repository.
+- The root [`docker-compose.yml`](../../docker-compose.yml), which starts the resident image2mesh engine, and [`docker-compose.comfy.yml`](../../docker-compose.comfy.yml), the overlay that mounts the [`comfy`](../comfy/CONTRACT.md) layer into ComfyUI.
 - The [`preview`](../preview/CONTRACT.md) entry point, started as a subprocess.
 - [`scripts/fetch-models.sh`](../../scripts/fetch-models.sh), used only when weights are missing.
 
@@ -54,6 +54,7 @@ The layer imports no sibling source.
 
 - A success result means every reported service answered over HTTP during this run.
 - Re-running init is safe. Compose converges existing services, complete model files are not downloaded again, and a reachable preview server is reused.
+- The sibling ComfyUI project's own files are never modified. Everything this toolkit adds to that stack is in the overlay.
 - No Blender image, binary, layer, or process is inspected or started.
 - stdout contains only the validated result envelope.
 

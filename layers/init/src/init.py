@@ -70,13 +70,14 @@ def _command(env_name, fallback):
     return shlex.split(value) if value else list(fallback)
 
 
-def _run(command, cwd, code, message):
+def _run(command, cwd, code, message, env=None):
     print("$ " + shlex.join(command), file=sys.stderr, flush=True)
     try:
         process = subprocess.Popen(
             command,
             cwd=cwd,
             text=True,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             bufsize=1,
@@ -164,14 +165,32 @@ def _start_compose(request):
         "Docker Compose is unavailable",
     )
     build_flag = "--build" if request["buildImages"] else "--no-build"
+
+    # The sibling stack is another project's file and is never edited. The
+    # overlay adds the custom-node mount, the shared output directory and the
+    # host-gateway route on top of it, so one graph can reach the engine.
+    comfy_files = ["-f", os.path.join(request["comfyDir"], "docker-compose.yml")]
+    comfy_env = dict(os.environ)
+    if request["comfyNode"]:
+        overlay = os.path.join(request["toolkitDir"], "docker-compose.comfy.yml")
+        if not os.path.isfile(overlay):
+            raise InitError("TOOLKIT_MISSING", "toolkit files are missing", overlay)
+        comfy_files += ["-f", overlay]
+        # The overlay's paths are absolute through these, because a relative
+        # host path in a compose file resolves against the project directory,
+        # and the project directory here is the other repository.
+        comfy_env["T2M_TOOLKIT"] = request["toolkitDir"]
+        comfy_env["T2M_OUT_DIR"] = request["outDir"]
+
     _run(
         docker
         + [
             "compose",
             "--project-directory",
             request["comfyDir"],
-            "-f",
-            os.path.join(request["comfyDir"], "docker-compose.yml"),
+        ]
+        + comfy_files
+        + [
             "up",
             "-d",
             build_flag,
@@ -179,6 +198,7 @@ def _start_compose(request):
         request["comfyDir"],
         "START_FAILED",
         "ComfyUI did not start",
+        env=comfy_env,
     )
     _run(
         docker
@@ -336,6 +356,8 @@ def _parser():
     parser.add_argument("--no-fetch", action="store_true")
     parser.add_argument("--no-build", action="store_true")
     parser.add_argument("--no-preview", action="store_true")
+    parser.add_argument("--no-comfy-node", action="store_true",
+                        help="start ComfyUI without the text-to-3d graph node")
     return parser
 
 
@@ -365,6 +387,8 @@ def _request_from_args(args):
         request["buildImages"] = False
     if args.no_preview:
         request["startPreview"] = False
+    if args.no_comfy_node:
+        request["comfyNode"] = False
     return request
 
 
