@@ -366,6 +366,48 @@ def test_an_unwritable_out_dir_is_reported(engine, tmp_path):
 # ---- the node adapter -------------------------------------------------------
 
 
+def test_comfyui_discovery_finds_the_node_through_the_package():
+    """Import the folder the way ComfyUI imports a custom node: by path.
+
+    ComfyUI walks custom_nodes/, imports each directory's __init__.py as a
+    module, and reads two names off it. Importing `src/node.py` directly, which
+    the rest of these tests do, does not exercise that path: it skips the
+    sys.path line in __init__.py, which is the one thing standing between a
+    mounted folder and `ModuleNotFoundError: node` at ComfyUI startup.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "t2m_custom_node", os.path.join(LAYER, "__init__.py"),
+        submodule_search_locations=[LAYER])
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert "TextTo3DMesh" in module.NODE_CLASS_MAPPINGS
+    assert module.NODE_DISPLAY_NAME_MAPPINGS["TextTo3DMesh"] == "Image to GLB (TRELLIS.2 Vulkan)"
+
+
+def test_the_workflow_template_wires_the_node_to_the_render():
+    """The shipped graph is the whole pipeline, and stays wired to the decode."""
+    with open(os.path.join(LAYER, "workflows", "text_to_3d.json"), encoding="utf-8") as handle:
+        graph = json.load(handle)
+
+    mesh = [node for node in graph.values() if node["class_type"] == "TextTo3DMesh"]
+    assert len(mesh) == 1, "the template should call the node exactly once"
+
+    source, slot = mesh[0]["inputs"]["image"]
+    assert graph[source]["class_type"] == "VAEDecode", "the mesh must come from the decoded render"
+    assert slot == 0
+    # The PNG is still written, so the preview can pair the mesh with its source.
+    assert any(node["class_type"] == "SaveImage" for node in graph.values())
+
+    inputs = mesh[0]["inputs"]
+    assert inputs["resolution"] in (512, 1024, 1536)
+    # host.docker.internal, not localhost: inside the container localhost is the
+    # container, and the engine is a separate one published on the host.
+    assert "host.docker.internal" in inputs["engine"]
+
+
 def test_the_node_declares_what_comfyui_reads():
     """The two names ComfyUI reads off the package, without importing torch."""
     import node
