@@ -14,7 +14,9 @@ That last strip is the rule worth keeping. The sidebar answers "which asset", so
 
 Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
 
-Under the name are three flags, not five facts. The line used to read `r1024 · rigged · 11.8k tris · 1.7 MB · 3 days ago`, which is everything that was easy to produce and answers nothing anybody asks while scanning a grid of characters. The questions are: how heavy is it, is it a person, can it move. So: a size, **Humanoid** when the skeleton has a root and both legs under their Mixamo names, and **Rigged** or **Static**. Each flag carries a colour and a word, so neither is doing the job alone.
+Under the name are flags, not facts. The line used to read `r1024 · rigged · 11.8k tris · 1.7 MB · 3 days ago`, which is everything that was easy to produce and answers nothing anybody asks while scanning a grid of characters. It now reads size, then what the thing is (**Model**, or **Humanoid** when the skeleton has a root and both legs under their Mixamo names), then what it can do: **Rigged** when it carries a skin, **Animated** when it carries clips. A prop stops after the first two, because "not rigged, not animated" about a treasure chest is two answers to questions nobody asked about a treasure chest.
+
+No boxes. Four bordered pills under every name turn a calm list into a spreadsheet, and the border was never carrying meaning the colour was not. Colour is the signal, the word is the same signal for anyone who cannot use colour, and a hairline dot separates them.
 
 Everything else, the file name, the id, the resolution tag, the triangle count, the timestamp, is behind **About this model** in the footer. It is real and occasionally needed; it was just never the question being asked while looking at the model.
 

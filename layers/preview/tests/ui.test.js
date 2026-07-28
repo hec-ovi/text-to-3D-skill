@@ -746,7 +746,8 @@ describe('card flags', () => {
     await ui.refresh()
 
     expect(flags(cards()[0])).toEqual([
-      ['size', '1.7 MB'], ['humanoid', 'Humanoid'], ['rigged', 'Rigged'],
+      ['size', '1.7 MB'], ['humanoid', 'Humanoid'],
+      ['rigged', 'Rigged'], ['animated', 'Animated'],
     ])
   })
 
@@ -755,7 +756,9 @@ describe('card flags', () => {
     const ui = mount()
     await ui.refresh()
 
-    expect(flags(cards()[0])).toEqual([['size', '4.7 MB'], ['static', 'Static']])
+    // A prop stops at what it is. "not rigged, not animated" about a chest
+    // is two answers to questions nobody asked about a chest.
+    expect(flags(cards()[0])).toEqual([['size', '4.7 MB'], ['model', 'Model']])
   })
 
   test('a rigged non-humanoid is rigged but not humanoid', async () => {
@@ -765,7 +768,7 @@ describe('card flags', () => {
     const ui = mount()
     await ui.refresh()
 
-    expect(flags(cards()[0]).map(([kind]) => kind)).toEqual(['size', 'rigged'])
+    expect(flags(cards()[0]).map(([kind]) => kind)).toEqual(['size', 'model', 'rigged'])
   })
 
   test('an unreadable file says only that', async () => {

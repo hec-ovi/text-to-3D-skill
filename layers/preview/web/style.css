@@ -470,49 +470,41 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   white-space: nowrap;
 }
 
-/* Three flags, not five facts. Each one answers a question somebody actually
-   has while scanning a grid of characters: how heavy, is it a person, can it
-   move. Colour carries the answer at a glance and the word carries it for
-   anyone who cannot use the colour, so neither is load-bearing alone. */
+/* Flags, not chips. Each one answers a question somebody actually has while
+   scanning a grid of characters: how heavy, is it a person, can it move.
+   No boxes: four bordered pills under every name turn a calm list into a
+   spreadsheet, and the border was never carrying meaning the colour was not.
+   Colour is the signal, the word is the same signal for anyone who cannot use
+   colour, and a hairline dot separates them instead of a frame. */
 .flags {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 7px;
   min-width: 0;
   overflow: hidden;
 }
 .flag {
   flex: none;
-  padding: 1px 5px;
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  border: 1px solid transparent;
   font-variant-numeric: tabular-nums;
 }
-.flag[data-kind="size"] {
-  color: var(--text-3);
-  border-color: var(--line-2);
+.flag + .flag::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-right: 7px;
+  vertical-align: 2px;
+  background: var(--line-2);
 }
-.flag[data-kind="humanoid"] {
-  color: #8ab4f8;
-  background: rgba(138, 180, 248, 0.11);
-  border-color: rgba(138, 180, 248, 0.3);
-}
-.flag[data-kind="rigged"] {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-}
-.flag[data-kind="static"] {
-  color: var(--text-3);
-  border-color: var(--line);
-}
-.flag[data-kind="bad"] {
-  color: var(--error);
-  background: rgba(226, 114, 106, 0.1);
-  border-color: rgba(226, 114, 106, 0.35);
-}
+.flag[data-kind="size"] { color: var(--text-3); }
+.flag[data-kind="model"] { color: var(--text-3); }
+.flag[data-kind="humanoid"] { color: #8ab4f8; }
+.flag[data-kind="rigged"] { color: var(--accent); }
+.flag[data-kind="animated"] { color: #d9a4e8; }
+.flag[data-kind="bad"] { color: var(--error); }
 
 .note {
   margin: 0;

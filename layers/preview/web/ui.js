@@ -542,10 +542,16 @@ export function mountUi(root, options = {}) {
   function flagsFor(model) {
     if (model.readable === false) return [{ label: 'unreadable', kind: 'bad' }]
     const flags = [{ label: formatBytes(model.byteSize), kind: 'size' }]
-    if (model.humanoid) flags.push({ label: 'Humanoid', kind: 'humanoid' })
-    flags.push(model.rigged
-      ? { label: 'Rigged', kind: 'rigged' }
-      : { label: 'Static', kind: 'static' })
+    // What it is, then what it can do. A prop stops at the first: saying
+    // "not rigged, not animated" about a treasure chest is two answers to
+    // questions nobody asked about a treasure chest.
+    flags.push(model.humanoid
+      ? { label: 'Humanoid', kind: 'humanoid' }
+      : { label: 'Model', kind: 'model' })
+    if (model.rigged) flags.push({ label: 'Rigged', kind: 'rigged' })
+    if (model.animations && model.animations.length) {
+      flags.push({ label: 'Animated', kind: 'animated' })
+    }
     return flags
   }
 
