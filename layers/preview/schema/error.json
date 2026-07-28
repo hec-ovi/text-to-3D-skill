@@ -5,19 +5,31 @@
   "description": "Closed error set for the preview layer. Returned as JSON with a matching HTTP status.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contractVersion", "code", "message"],
+  "required": [
+    "contractVersion",
+    "code",
+    "message"
+  ],
   "properties": {
-    "contractVersion": { "type": "string", "const": "1.1" },
+    "contractVersion": {
+      "type": "string",
+      "const": "1.1"
+    },
     "code": {
       "type": "string",
       "enum": [
         "DIR_MISSING",
         "NOT_FOUND",
         "FORBIDDEN",
-        "PORT_IN_USE"
+        "PORT_IN_USE",
+        "DELETE_FAILED"
       ]
     },
-    "message": { "type": "string" },
-    "detail": { "type": "string" }
+    "message": {
+      "type": "string"
+    },
+    "detail": {
+      "type": "string"
+    }
   }
 }

@@ -10,6 +10,7 @@ import struct
 import sys
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import pytest
@@ -250,6 +251,79 @@ def test_a_skeleton_without_both_legs_is_not_humanoid(server):
     entry = json.loads(get(base + "/api/models")[1])["models"][0]
     assert entry["rigged"] is True
     assert entry["humanoid"] is False
+
+
+def delete(url):
+    request = urllib.request.Request(url, method="DELETE")
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read()
+
+
+DELETE_SCHEMA = load(os.path.join(LAYER, "schema", "delete_result.json"))
+
+
+def test_deleting_a_model_takes_its_whole_asset(server):
+    """The GLB, the mesh it superseded, and the render it came from."""
+    base, directory = server
+    (directory / "hero-r512.glb").write_bytes(make_glb())
+    (directory / "hero-r512-rigged.glb").write_bytes(make_glb(joints=34))
+    # The source is paired by the stem before -r<res>, which is how the
+    # pipeline names them: hero.png produced hero-r512.glb.
+    (directory / "hero.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 40)
+    (directory / "keep-r512.glb").write_bytes(make_glb())
+
+    status, body = delete(base + "/api/models/hero-r512-rigged")
+    assert status == 200
+    payload = json.loads(body)
+    validate(payload, DELETE_SCHEMA)
+    assert set(payload["removed"]) == {
+        "hero-r512-rigged.glb", "hero-r512.glb", "hero.png"}
+
+    assert not (directory / "hero-r512-rigged.glb").exists()
+    assert not (directory / "hero-r512.glb").exists()
+    assert not (directory / "hero.png").exists()
+    # Nothing else went with it.
+    assert (directory / "keep-r512.glb").exists()
+    assert [m["name"] for m in json.loads(get(base + "/api/models")[1])["models"]] \
+        == ["keep-r512.glb"]
+
+
+def test_deleting_a_plain_model_leaves_the_rest_alone(server):
+    base, directory = server
+    (directory / "one.glb").write_bytes(make_glb())
+    (directory / "two.glb").write_bytes(make_glb())
+
+    status, body = delete(base + "/api/models/one")
+    assert status == 200
+    assert json.loads(body)["removed"] == ["one.glb"]
+    assert (directory / "two.glb").exists()
+
+
+def test_deleting_something_that_is_not_there_is_a_not_found_envelope(server):
+    base, directory = server
+    (directory / "one.glb").write_bytes(make_glb())
+
+    status, body = delete(base + "/api/models/ghost")
+    assert status == 404
+    payload = json.loads(body)
+    validate(payload, ERROR_SCHEMA)
+    assert payload["code"] == "NOT_FOUND"
+    assert (directory / "one.glb").exists()
+
+
+def test_delete_cannot_reach_outside_the_served_directory(server):
+    """The one route that writes is the one where a path escape is worst."""
+    base, directory = server
+    (directory / "one.glb").write_bytes(make_glb())
+    outside = directory.parent / "precious.glb"
+    outside.write_bytes(b"do not delete me")
+
+    status, _ = delete(base + "/api/models/" + urllib.parse.quote("../precious.glb", safe=""))
+    assert status == 404
+    assert outside.exists()
 
 
 def test_a_static_model_is_not_rigged(server):

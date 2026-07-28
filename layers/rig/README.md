@@ -25,7 +25,7 @@ SkinTokens says NVIDIA, CUDA 12.1+, flash-attn, 14 GB. The code says otherwise: 
 | Four modules import `flash_attn_interface` with no SDPA branch | `docker/shim/` supplies that module, backed by torch SDPA. Their own `attention_processor.py` already carries the same implementation as a fallback. |
 | `tokenrig.py` hardcodes `attn_implementation="flash_attention_2"` | `docker/server.py` rewrites that one argument to `"sdpa"` before the model is built. |
 
-Neither changes what is computed. Measured on the Radeon 8060S: model load 16 s, then 32 s to rig an 11K-vertex character into 34 joints.
+Neither changes what is computed. Measured on the Radeon 8060S: the service loads in 15.1 s, then rigs an 11,168-vertex character into 34 joints in 13.0 s. An earlier run measured 31.9 s while a language model was resident on the same iGPU.
 
 ## What lives where
 

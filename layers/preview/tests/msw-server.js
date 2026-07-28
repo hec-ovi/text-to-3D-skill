@@ -35,4 +35,21 @@ export function serveNetworkFailure() {
   server.use(http.get('/api/models', () => HttpResponse.error()))
 }
 
+/** Accept DELETE /api/models/:id, recording which ids were asked for. */
+export function serveDelete(body) {
+  const recorder = { calls: [] }
+  server.use(
+    http.delete('/api/models/:id', ({ params }) => {
+      recorder.calls.push(params.id)
+      return HttpResponse.json({ contractVersion: '1.1', ...body })
+    }),
+  )
+  return recorder
+}
+
+/** Refuse DELETE /api/models/:id with an error envelope. */
+export function serveDeleteError(status, body) {
+  server.use(http.delete('/api/models/:id', () => HttpResponse.json(body, { status })))
+}
+
 export { http, HttpResponse }

@@ -670,6 +670,26 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   flex-wrap: wrap;
 }
 
+/* The one action on this page that cannot be undone from it, so it is the one
+   control that is not the same colour as the rest and the one that asks. */
+.btn-danger { color: var(--error); border-color: rgba(226, 114, 106, 0.3); }
+.btn-danger:hover:not(:disabled) {
+  color: #f0908a;
+  background: rgba(226, 114, 106, 0.12);
+  border-color: rgba(226, 114, 106, 0.5);
+}
+.btn-danger:hover:not(:disabled) .i { color: inherit; }
+
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.confirm-text {
+  font-size: 12px;
+  color: var(--text);
+}
+
 .slider {
   display: inline-flex;
   align-items: center;

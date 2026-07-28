@@ -128,6 +128,7 @@ const ICON = {
   character: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="3.1" r="1.7"/><path d="M8 4.8v5M8 6.4 4.6 8.6M8 6.4l3.4 2.2M8 9.8l-2.2 3.4M8 9.8l2.2 3.4"/></svg>`,
   sliders: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.6 4.6h10.8M2.6 11.4h10.8"/><circle cx="6" cy="4.6" r="1.6"/><circle cx="10.4" cy="11.4" r="1.6"/></svg>`,
   info: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.7"/><path d="M8 7.2v4"/><circle cx="8" cy="5.1" r="0.5" fill="currentColor" stroke="none"/></svg>`,
+  trash: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.2 4.6h9.6M6.4 4.6V3.2h3.2v1.4M4.5 4.6l.6 8.2h5.8l.6-8.2M6.7 6.9v3.6M9.3 6.9v3.6"/></svg>`,
   pause: `<svg class="i i-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="4.7" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/><rect x="9" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/></svg>`,
 }
 
@@ -222,6 +223,13 @@ const LAYOUT = `
           <label class="toggle"><input id="grid" type="checkbox"><span>Grid</span></label>
           <label class="toggle"><input id="quality" type="checkbox" checked><span>Quality</span></label>
           <button id="reset-view" class="btn" type="button">${ICON.recenter}Reset view</button>
+          <span class="spacer"></span>
+          <button id="remove" class="btn btn-danger" type="button">${ICON.trash}Remove</button>
+          <span class="confirm" id="remove-confirm" hidden>
+            <span class="confirm-text">Delete this model and its files?</span>
+            <button id="remove-yes" class="btn btn-danger" type="button">Delete</button>
+            <button id="remove-no" class="btn" type="button">Cancel</button>
+          </span>
         </div>
 
         <section class="motion" id="motion" hidden>
@@ -302,6 +310,10 @@ export function mountUi(root, options = {}) {
     currentName: root.querySelector('#current-name'),
     stats: root.querySelector('#stats'),
     about: root.querySelector('#about'),
+    remove: root.querySelector('#remove'),
+    removeConfirm: root.querySelector('#remove-confirm'),
+    removeYes: root.querySelector('#remove-yes'),
+    removeNo: root.querySelector('#remove-no'),
     motion: root.querySelector('#motion'),
     clipList: root.querySelector('#clip-list'),
     playPause: root.querySelector('#play-pause'),
@@ -775,6 +787,40 @@ export function mountUi(root, options = {}) {
     const open = el.about.getAttribute('aria-expanded') === 'true'
     el.about.setAttribute('aria-expanded', String(!open))
     el.stats.hidden = open
+  })
+
+  // Two steps, and the second one is not in the same place as the first, so a
+  // double click on Remove cannot delete anything. Deletion is the one action
+  // here that a person cannot undo from the page.
+  function askToRemove(on) {
+    el.removeConfirm.hidden = !on
+    el.remove.hidden = on
+    if (on) el.removeNo.focus()
+  }
+
+  el.remove.addEventListener('click', () => askToRemove(true))
+  el.removeNo.addEventListener('click', () => {
+    askToRemove(false)
+    el.remove.focus()
+  })
+  el.removeYes.addEventListener('click', async () => {
+    const model = selected
+    if (!model) return
+    askToRemove(false)
+    setStatus(`Removing ${model.name}…`)
+    try {
+      const response = await fetchImpl(`/api/models/${encodeURIComponent(keyOf(model))}`,
+                                       { method: 'DELETE' })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(body && body.message ? body.message : `HTTP ${response.status}`)
+      }
+      const files = (body && body.removed) || []
+      await refresh({ keepSelection: false })
+      setStatus(`Removed ${model.name}${files.length > 1 ? ` and ${files.length - 1} more file${files.length > 2 ? 's' : ''}` : ''}.`, 'ok')
+    } catch (error) {
+      setStatus(`Could not remove ${model.name}: ${error.message}`, 'error')
+    }
   })
 
   return {

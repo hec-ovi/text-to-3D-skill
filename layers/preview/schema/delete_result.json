@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "preview/delete_result.json",
+  "title": "DeleteResult",
+  "description": "Params out for DELETE /api/models/<id>: what was actually removed from disk.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "id", "removed"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.1" },
+    "id": {
+      "type": "string",
+      "description": "The model that was removed."
+    },
+    "removed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Every file deleted: the GLB, the mesh it superseded, and the image it was reconstructed from. A file already gone is not listed and is not an error."
+    }
+  }
+}

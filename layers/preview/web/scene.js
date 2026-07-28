@@ -18,7 +18,11 @@ import { buildStudio, frameObject, placeCamera, upgradeTextures, TONE_MAPPING, E
 
 export function createViewer(container, { quality = true } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
-  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2))
+  // 1.5, not 2. The second pixel of a 2x ratio costs 78% more fragments than
+  // 1.5x does and buys an edge nobody looking at a turntable can see. This is
+  // the single largest lever on a machine whose iGPU is also the thing
+  // generating the assets.
+  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 1.5))
   renderer.toneMapping = TONE_MAPPING
   renderer.toneMappingExposure = EXPOSURE
   // A model floating with no contact point reads as a render, not an object.
@@ -74,16 +78,19 @@ export function createViewer(container, { quality = true } = {}) {
   // Radius is in world units and the model is framed into a 1.4-unit box, so
   // 0.12 is roughly a finger's width on a human figure: it catches the join
   // between arm and torso without darkening the whole chest.
+  // 8 samples, not 16. The occlusion pass is the most expensive thing in this
+  // graph and it runs per frame; halving its samples halves that cost, and the
+  // denoise pass that follows was already smoothing the difference away.
   gtao.updateGtaoMaterial({
     radius: 0.12,
     distanceExponent: 1.0,
     thickness: 0.4,
     scale: 1.0,
-    samples: 16,
+    samples: 8,
     distanceFallOff: 1.0,
     screenSpaceRadius: false,
   })
-  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 })
+  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 8 })
   composer.addPass(gtao)
 
   // Threshold above white in the linear pass, so only a genuine specular hit
@@ -111,6 +118,9 @@ export function createViewer(container, { quality = true } = {}) {
   let clips = []
   let action = null
   let playing = true
+  // Declared here, not beside the loop that reads it: resize() runs during
+  // setup and sets it, and a `let` used before its declaration throws.
+  let needsFrame = true
 
   function resize() {
     const { clientWidth: w, clientHeight: h } = container
@@ -122,6 +132,7 @@ export function createViewer(container, { quality = true } = {}) {
     bloom.setSize(w * ratio, h * ratio)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+    needsFrame = true
   }
 
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null
@@ -197,6 +208,7 @@ export function createViewer(container, { quality = true } = {}) {
               triangles += index ? index.count / 3 : node.geometry.attributes.position.count / 3
             }
           })
+          needsFrame = true
           resolve({
             triangles: Math.round(triangles),
             clips: clips.map((c) => ({ name: c.name, duration: Number(c.duration.toFixed(3)) })),
@@ -223,20 +235,24 @@ export function createViewer(container, { quality = true } = {}) {
     }
     action = next
     action.paused = !playing
+    needsFrame = true
     return clip.name
   }
 
   function setPlaying(on) {
+    needsFrame = true
     playing = on
     if (action) action.paused = !on
   }
 
   function setRotation({ enabled, speed }) {
+    needsFrame = true
     controls.autoRotate = enabled
     if (Number.isFinite(speed)) controls.autoRotateSpeed = speed
   }
 
   function setWireframe(on) {
+    needsFrame = true
     wireframe = on
     if (current) applyWireframe(current)
   }
@@ -248,29 +264,61 @@ export function createViewer(container, { quality = true } = {}) {
    */
   function setQuality(on) {
     highQuality = on
+    needsFrame = true
   }
 
   function setGrid(on) {
+    needsFrame = true
     grid.visible = on
     if (studio.ground) studio.ground.visible = !on
   }
 
   function resetView() {
+    needsFrame = true
     camera.position.copy(home.position)
     controls.target.copy(home.target)
     controls.update()
   }
 
+  /**
+   * Draw only when the picture would differ from the one already on screen.
+   *
+   * This loop used to render every frame for as long as the page was open,
+   * which on a still model with auto rotate off meant occlusion, bloom and a
+   * multisampled resolve, sixty times a second, to produce the same image
+   * sixty times. On a box whose iGPU is also the thing generating the assets
+   * that is the difference between a viewer you can leave open and one you
+   * cannot.
+   *
+   * Something has to ask for a frame: a control changing, a model loading, the
+   * canvas resizing, or the camera still settling under damping. Auto rotate
+   * and a playing clip are continuous by nature and simply keep asking.
+   */
+  const invalidate = () => { needsFrame = true }
+  controls.addEventListener('change', invalidate)
+
   function tick() {
     if (disposed) return
     globalThis.requestAnimationFrame(tick)
-    // The image tab hides the stage; a hidden element has no size, and drawing
-    // into it is pure waste on a laptop iGPU that is usually busy generating.
     timer.update()
     const delta = timer.getDelta()
+
+    // The image tab and the gallery both hide the stage, and a hidden element
+    // has no size. Drawing into it is waste with nothing to show for it.
     if (!container.clientWidth || !container.clientHeight) return
+    // Nothing is visible while the tab is in the background, and the browser
+    // throttles this loop rather than stopping it.
+    if (globalThis.document?.visibilityState === 'hidden') return
+
+    const animating = Boolean(mixer && action && playing)
+    // update() returns true while damping is still moving the camera, which is
+    // what keeps a flick of the mouse smooth after the pointer has stopped.
+    const settling = controls.update()
+
+    if (!needsFrame && !controls.autoRotate && !animating && !settling) return
+    needsFrame = false
+
     if (mixer) mixer.update(delta)
-    controls.update()
     if (highQuality) composer.render(delta)
     else renderer.render(scene, camera)
   }

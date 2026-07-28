@@ -10,7 +10,7 @@ Show a generated GLB in a browser, on a turntable, so a human can decide whether
 
 | Param | Schema | Preconditions |
 | --- | --- | --- |
-| `--dir <path>` | no schema: a filesystem path, not a payload | The directory exists and holds `.glb` files. It is read only; this layer never writes into it. |
+| `--dir <path>` | no schema: a filesystem path, not a payload | The directory exists and holds `.glb` files. It is read except by `DELETE /api/models/<id>`, which is the one route that removes from it. |
 | `?id=<id>` | no schema: a query parameter | Optional, on the page and on `GET /api/models`. The `id` of a model in `--dir`; a file name is accepted too. On the page an unknown id falls back to the newest model and says so; on the API it is a 404. |
 | `?model=<name>` | no schema: a query parameter | Optional, page only. The older spelling of `?id=`, still honoured so existing links keep working. |
 
@@ -24,6 +24,7 @@ Entry point: `python3 src/serve.py --dir ../../out`. Python 3.10+, standard libr
 | `ModelList` from `GET /api/models?id=<id>` | [`schema/model_list.json`](schema/model_list.json) | The same envelope holding exactly the one matching entry, so a caller that resolved an id parses what it parses for a list. `404 NOT_FOUND` when nothing matches. |
 | GLB bytes from `GET /models/<name>` | none: the file verbatim | Served as `model/gltf-binary`, with an `ETag` over mtime and size and `Cache-Control: no-cache`. A reload revalidates and gets a 304; a regenerated asset changes both mtime and size, so a stale file can never win. |
 | Image bytes from `GET /images/<name>` | none: the file verbatim | Only `.png`, `.jpg`, `.jpeg` and `.webp` are served; anything else is a `NOT_FOUND`. Same `ETag` handling. |
+| `DeleteResult` from `DELETE /api/models/<id>` | [`schema/delete_result.json`](schema/delete_result.json) | The model and everything belonging to it are gone from disk: the GLB, any mesh it superseded, and the image it was reconstructed from. `removed` lists what was actually deleted; a file already missing is not an error. `404 NOT_FOUND` when no model matches, `403 FORBIDDEN` when the id resolves outside the directory. |
 | The viewer page from `GET /` | none: HTML, CSS and ES modules | Two layouts over one model list, opening on the gallery. The model list is in the sidebar and is present in both, and is the page's only listbox; only the main area swaps. Gallery: a contact sheet of tiles, each showing that GLB rendered in the browser. Single: the selected model on a turntable or its source image behind two tabs. GLBs imported from elsewhere may also expose their existing animation clips. |
 
 ## Events
@@ -39,6 +40,7 @@ Closed set, [`schema/error.json`](schema/error.json), returned as JSON with a ma
 | `DIR_MISSING` | 404 | `--dir` does not exist. |
 | `NOT_FOUND` | 404 | No such model or asset. |
 | `FORBIDDEN` | 403 | The requested path escapes the served directory. |
+| `DELETE_FAILED` | 500 | A file could not be removed. |
 | `PORT_IN_USE` | exit 1 | The port could not be bound. Printed to stderr, not served. |
 
 ## Dependencies
@@ -49,7 +51,7 @@ Vendored: three.js `0.185.1` under `web/vendor/three/` (MIT, version recorded in
 
 ## Invariants
 
-- The served directory is never written to.
+- The served directory is read only, with one exception: `DELETE /api/models/<id>` removes an asset. That was a deliberate change to this invariant rather than a drift from it, and it is the only route that writes. It deletes what a person means by "this model", the GLB plus its superseded mesh and its source image, because clearing the gallery while leaving the directory full is worse than not offering deletion.
 - An `id` is stable for a given file name and unique within one listing: the file stem folded to `[A-Za-z0-9._-]`, disambiguated with a hash suffix when two names fold together. Two models can never share an id, because a shared id would serve the wrong file.
 - Paths that escape `--dir` are refused, checked with `os.path.commonpath`, not by string prefix.
 - A model that fails to parse is reported as unreadable and never handed to the loader.

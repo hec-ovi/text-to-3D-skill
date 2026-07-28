@@ -14,7 +14,9 @@ import {
   mountUi, pickInitial, filterModels, titleOf, tagsOf,
   formatBytes, formatCount, formatAge,
 } from '../web/ui.js'
-import { model, serveModels, serveError, serveNetworkFailure } from './msw-server.js'
+import {
+  model, serveModels, serveError, serveNetworkFailure, serveDelete, serveDeleteError,
+} from './msw-server.js'
 
 function mount(options = {}) {
   document.body.innerHTML = '<div id="app"></div>'
@@ -826,6 +828,60 @@ describe('about this model', () => {
 
     await user.click(screen.getByRole('button', { name: /about this model/i }))
     expect(document.querySelector('#stats').textContent).toContain('hero-r512.glb')
+  })
+})
+
+describe('removing a model', () => {
+  const confirm = () => document.querySelector('#remove-confirm')
+
+  test('it asks before it deletes, and cancelling deletes nothing', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(confirm().hidden).toBe(true)
+    await user.click(screen.getByRole('button', { name: /^remove$/i }))
+    expect(confirm().hidden).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(confirm().hidden).toBe(true)
+    expect(ui.models).toHaveLength(2)
+  })
+
+  test('confirming removes the model and its files, and the list refreshes', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL, HELMET])
+    const deleted = serveDelete({ id: 'bell-r512', removed: ['bell-r512.glb', 'bell.png'] })
+    const ui = mount()
+    await ui.refresh()
+    expect(ui.selected.name).toBe('bell-r512.glb')
+
+    await user.click(screen.getByRole('button', { name: /^remove$/i }))
+    serveModels([HELMET])
+    await user.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(ui.models).toHaveLength(1))
+    expect(deleted.calls).toEqual(['bell-r512'])
+    expect(ui.selected.name).toBe('helmet-r512.glb')
+    expect(screen.getByRole('status').textContent).toMatch(/Removed bell-r512\.glb and 1 more file/)
+  })
+
+  test('a refused delete says so and keeps the model', async () => {
+    const user = userEvent.setup()
+    serveModels([BELL])
+    serveDeleteError(500, { contractVersion: '1.1', code: 'DELETE_FAILED',
+                            message: 'permission denied' })
+    const ui = mount()
+    await ui.refresh()
+
+    await user.click(screen.getByRole('button', { name: /^remove$/i }))
+    await user.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toMatch(/permission denied/))
+    expect(screen.getByRole('status').dataset.kind).toBe('error')
+    expect(ui.models).toHaveLength(1)
   })
 })
 

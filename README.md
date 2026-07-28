@@ -1,15 +1,9 @@
 <h1 align="center">text-to-3D-skill</h1>
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/assets/red-sports-car.gif" alt="Generated red sports car rotating in the local GLB viewer"><br><strong>Red sports car</strong></td>
-    <td align="center"><img src="docs/assets/sport-motorcycle-superbike.gif" alt="Generated sport motorcycle superbike rotating in the local GLB viewer"><br><strong>Sport motorcycle superbike</strong></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/assets/humanoid-figure.gif" alt="Generated humanoid figure rotating in the local GLB viewer"><br><strong>Humanoid figures</strong></td>
-    <td align="center"><img src="docs/assets/bonsai-tree.gif" alt="Generated bonsai tree in a ceramic pot rotating in the local GLB viewer"><br><strong>Bonsai tree</strong></td>
-  </tr>
-</table>
+<p align="center"><img src="docs/assets/01.gif" alt=""></p>
+<p align="center"><img src="docs/assets/02.gif" alt=""></p>
+<p align="center"><img src="docs/assets/03.gif" alt=""></p>
+<p align="center"><img src="docs/assets/04.gif" alt=""></p>
 
 Type one subject description and get a textured GLB generated locally on an AMD Strix Halo APU. A humanoid can then be rigged and given clips, on the same box, with no Blender.
 
@@ -17,8 +11,6 @@ Type one subject description and get a textured GLB generated locally on an AMD 
 prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB
                                                   character ->  SkinTokens (ROCm) -> rigged GLB
 ```
-
-The screenshots above are four orders run through the toolkit: a red sports car, a sport motorcycle superbike, a humanoid figure, and a bonsai tree in a ceramic pot.
 
 ## What it does
 
@@ -108,7 +100,7 @@ Use resolution 1024 for full-body figures and 512 for compact props. A generated
 python3 layers/rig/src/rig.py --glb out/<character>-r1024.glb --out-dir out
 ```
 
-Writes `<stem>-rigged.glb` with a Mixamo-named skeleton and `idle` and `walk`. Measured on the Radeon 8060S: 32 seconds to rig an 11K-vertex character into 34 joints. The output validates clean against the Khronos glTF-Validator.
+Writes `<stem>-rigged.glb` with a Mixamo-named skeleton and `idle` and `walk`. Measured on the Radeon 8060S, an 11,168-vertex character into 34 joints: 13.0 seconds with the model resident, 31.9 seconds in a run that shared the iGPU with a language model. The service pays a 15.1 second load once at startup. The output validates clean against the Khronos glTF-Validator: 0 errors, 0 warnings.
 
 SkinTokens documents NVIDIA, CUDA 12.1+ and flash-attn. Its code needs none of that: there is no CUDA-only dependency and no compiled extension in it. Two things block it on AMD, and [`layers/rig/docker/`](layers/rig/docker/Dockerfile) handles both without editing upstream: a `flash_attn_interface` shim backed by torch SDPA, and one hardcoded `attn_implementation` argument rewritten to `sdpa`.
 
@@ -176,7 +168,9 @@ npm install
 npm test
 ```
 
-Measured on the Strix Halo host after a fresh build: init reached all three health endpoints in 853 seconds. The prompt `a small blue ceramic teapot with a curved spout, loop handle, and round lid` then produced its 1024 PNG in 514.6 seconds and a 3,982-triangle, 229,420-byte GLB in 154.2 seconds. The bundled viewer loaded and rendered the result.
+Measured on the Strix Halo host. From cold, with both images to build and the weights to load, init reached every health endpoint in 853 seconds; against already-built images it converges in 38.
+
+One character end to end, `a stylised viking warrior in leather armour with a fur cloak and braided beard` at resolution 1024 with a 12,000 face budget: 519 seconds for the portrait render, 1,084 for the mesh, giving 11,768 triangles at 1.76 MB. Rigging it took a further 13. The same subject through the single ComfyUI graph, at 512, took 830 seconds start to finish.
 
 ## Limits
 

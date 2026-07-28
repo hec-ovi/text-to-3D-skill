@@ -369,6 +369,9 @@ def make_handler(models_dir):
             if path.startswith("/models/"):
                 return self._file(models_dir, urllib.parse.unquote(path[len("/models/"):]))
 
+            if path == "/api/health":
+                return self._json(200, {"contractVersion": CONTRACT_VERSION, "ready": True})
+
             if path.startswith("/images/"):
                 name = urllib.parse.unquote(path[len("/images/"):])
                 if os.path.splitext(name)[1].lower() not in IMAGE_TYPES:
@@ -379,6 +382,54 @@ def make_handler(models_dir):
                 return self._file(WEB, "index.html")
 
             return self._file(WEB, urllib.parse.unquote(path.lstrip("/")))
+
+        def do_DELETE(self):
+            """Remove one asset and everything that belongs to it.
+
+            This is the one route that writes, and it took changing a stated
+            invariant to add: the server used to only ever read. Deleting from
+            a browser is worth that, but only if it deletes what a person means
+            by "this model", which is the GLB, the mesh it superseded, and the
+            render it was reconstructed from. Leaving the source PNG behind
+            would leave the gallery looking cleared and the directory not.
+            """
+            parsed = urllib.parse.urlparse(self.path)
+            if not parsed.path.startswith("/api/models/"):
+                return self._error(404, "NOT_FOUND", "nothing to delete here")
+            wanted = urllib.parse.unquote(parsed.path[len("/api/models/"):])
+            if not wanted:
+                return self._error(404, "NOT_FOUND", "no model id given")
+
+            listing = list_models(models_dir)
+            match = next((m for m in listing["models"]
+                          if m["id"] == wanted or m["name"] == wanted), None)
+            if match is None:
+                return self._error(404, "NOT_FOUND", f"no model with id {wanted}")
+
+            names = [match["name"]] + list(match.get("supersedes", []))
+            if match.get("source"):
+                names.append(match["source"]["name"])
+
+            removed, failed = [], []
+            for name in names:
+                safe = posixpath.normpath("/" + name).lstrip("/")
+                target = os.path.abspath(os.path.join(models_dir, safe))
+                if os.path.commonpath([target, os.path.abspath(models_dir)]) != \
+                        os.path.abspath(models_dir):
+                    return self._error(403, "FORBIDDEN", "path escapes the served directory")
+                try:
+                    os.remove(target)
+                    removed.append(name)
+                except FileNotFoundError:
+                    continue
+                except OSError as exc:
+                    failed.append(f"{name}: {exc}")
+
+            if failed:
+                return self._error(500, "DELETE_FAILED", "some files could not be removed",
+                                   "; ".join(failed))
+            return self._json(200, {"contractVersion": CONTRACT_VERSION,
+                                    "id": match["id"], "removed": removed})
 
     return Handler
 
