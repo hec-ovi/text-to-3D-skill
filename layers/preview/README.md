@@ -6,7 +6,7 @@ The viewer for everything this repo produces. The contract is [`CONTRACT.md`](CO
 python3 src/serve.py --dir ../../out --open
 ```
 
-The model list is down the left and stays there. Only the middle pane changes. The page opens on **Gallery**, a contact sheet where every card is that GLB actually rendered, at 512px, by the same studio the turntable uses. **Single** swaps the sheet for the turntable, with the source image behind a second tab, because seeing both is the only way to tell a bad reconstruction from a bad prompt. Picking a model anywhere opens it on the turntable, and the wordmark in the top bar goes back to the sheet. Cards carry the triangle count, the size and the age either way; filter by name, or walk the list with the arrow keys.
+The model list is down the left and stays there. Only the middle pane changes. The page opens on **Gallery**, a contact sheet where every card is that GLB actually rendered, at 512px, by the same studio the turntable uses. **Single** swaps the sheet for the turntable, with the source image behind a second tab, because seeing both is the only way to tell a bad reconstruction from a bad prompt. Picking a model anywhere opens it on the turntable, and the wordmark in the top bar goes back to the sheet. Filter by name, or walk the list with the arrow keys.
 
 Three scopes, three strips. The top bar is the page: which layout, and what you are filtering for. The sidebar is the models, and only the models. The viewer owns the asset: its name above the render, its controls below it.
 
