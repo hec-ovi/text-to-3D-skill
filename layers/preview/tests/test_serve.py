@@ -25,7 +25,7 @@ MODEL_LIST_SCHEMA = load(os.path.join(LAYER, "schema", "model_list.json"))
 ERROR_SCHEMA = load(os.path.join(LAYER, "schema", "error.json"))
 
 
-def make_glb(triangles=4, materials=1, meshes=1, animations=(), joints=0):
+def make_glb(triangles=4, materials=1, meshes=1, animations=(), joints=0, joint_names=()):
     """Real GLB bytes: header, JSON chunk, BIN chunk."""
     index_count = triangles * 3
     indices = struct.pack(f"<{index_count}H", *([0] * index_count))
@@ -45,7 +45,10 @@ def make_glb(triangles=4, materials=1, meshes=1, animations=(), joints=0):
     if materials:
         gltf["materials"] = [{"pbrMetallicRoughness": {}} for _ in range(materials)]
     if joints:
-        gltf["nodes"] = [{"name": f"joint{i}"} for i in range(joints)]
+        # Named bones matter: the humanoid flag is read off these, not off the
+        # joint count, because a count says nothing about what the bones are.
+        names = list(joint_names) + [f"joint{i}" for i in range(len(joint_names), joints)]
+        gltf["nodes"] = [{"name": name} for name in names[:joints]]
         gltf["skins"] = [{"joints": list(range(joints))}]
     if animations:
         gltf["animations"] = [
@@ -225,6 +228,37 @@ def test_two_resolutions_are_two_assets_not_a_pair(server):
 
     payload = json.loads(get(base + "/api/models")[1])
     assert len(payload["models"]) == 2
+
+
+def test_a_named_skeleton_is_reported_as_humanoid(server):
+    """The card's flag, answered from the file rather than from the name."""
+    base, directory = server
+    (directory / "hero-rigged.glb").write_bytes(make_glb(
+        joints=34, joint_names=["mixamorig:Hips", "mixamorig:LeftUpLeg",
+                                "mixamorig:RightUpLeg", "mixamorig:Spine"]))
+
+    entry = json.loads(get(base + "/api/models")[1])["models"][0]
+    assert entry["rigged"] is True
+    assert entry["humanoid"] is True
+
+
+def test_a_skeleton_without_both_legs_is_not_humanoid(server):
+    base, directory = server
+    (directory / "creature-rigged.glb").write_bytes(make_glb(
+        joints=8, joint_names=["mixamorig:Hips", "mixamorig:Spine", "tail1", "tail2"]))
+
+    entry = json.loads(get(base + "/api/models")[1])["models"][0]
+    assert entry["rigged"] is True
+    assert entry["humanoid"] is False
+
+
+def test_a_static_model_is_not_rigged(server):
+    base, directory = server
+    (directory / "prop.glb").write_bytes(make_glb())
+
+    entry = json.loads(get(base + "/api/models")[1])["models"][0]
+    assert entry["rigged"] is False
+    assert "humanoid" not in entry
 
 
 def test_a_static_model_says_nothing_about_clips(server):

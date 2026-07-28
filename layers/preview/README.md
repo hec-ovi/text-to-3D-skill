@@ -12,7 +12,11 @@ Three scopes, three strips. The top bar is the page: which layout, and what you 
 
 That last strip is the rule worth keeping. The sidebar answers "which asset", so anything acting on the one already loaded goes in the viewer's footer, under the render it changes: auto rotate and its speed, wireframe, grid, quality, reset view, and the clips of an animated GLB beside them. The whole strip is gone when there is nothing to control, so no control is ever on screen greyed out.
 
-Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with resolution and other legacy suffixes kept as tags. The full name is on hover and spelled out in the top bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
+Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
+
+Under the name are three flags, not five facts. The line used to read `r1024 · rigged · 11.8k tris · 1.7 MB · 3 days ago`, which is everything that was easy to produce and answers nothing anybody asks while scanning a grid of characters. The questions are: how heavy is it, is it a person, can it move. So: a size, **Humanoid** when the skeleton has a root and both legs under their Mixamo names, and **Rigged** or **Static**. Each flag carries a colour and a word, so neither is doing the job alone.
+
+Everything else, the file name, the id, the resolution tag, the triangle count, the timestamp, is behind **About this model** in the footer. It is real and occasionally needed; it was just never the question being asked while looking at the model.
 
 The card art is the GLB, not the PNG it was reconstructed from. Using the source image was tempting and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have thrown half of it away. The source image is the fallback, for a model whose render fails or a page with no WebGL.
 

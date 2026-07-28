@@ -49,7 +49,6 @@ describe('model list', () => {
     await ui.refresh()
 
     expect(cardNames()).toEqual(['Bell', 'Helmet'])
-    expect(cards()[0].textContent).toContain('141k tris')
     expect(cards()[0].textContent).toContain('4.3 MB')
     expect(screen.getByRole('listbox', { name: /models/i })).toBeTruthy()
     expect(document.querySelector('#model-count').textContent).toBe('(2)')
@@ -734,6 +733,99 @@ describe('gallery', () => {
   })
 })
 
+describe('card flags', () => {
+  const flags = (card) => Array.from(card.querySelectorAll('.flag'))
+    .map((f) => [f.dataset.kind, f.textContent])
+
+  test('a rigged humanoid says so, and how heavy it is', async () => {
+    serveModels([model('hero-r512-rigged.glb', {
+      byteSize: 1834567, rigged: true, humanoid: true, joints: 34,
+      animations: ['idle', 'walk'],
+    })])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(flags(cards()[0])).toEqual([
+      ['size', '1.7 MB'], ['humanoid', 'Humanoid'], ['rigged', 'Rigged'],
+    ])
+  })
+
+  test('a prop says static, and claims nothing about being a person', async () => {
+    serveModels([model('chest-r512.glb', { byteSize: 4914740 })])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(flags(cards()[0])).toEqual([['size', '4.7 MB'], ['static', 'Static']])
+  })
+
+  test('a rigged non-humanoid is rigged but not humanoid', async () => {
+    serveModels([model('giraffe-rigged.glb', {
+      byteSize: 1000000, rigged: true, humanoid: false, joints: 21,
+    })])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(flags(cards()[0]).map(([kind]) => kind)).toEqual(['size', 'rigged'])
+  })
+
+  test('an unreadable file says only that', async () => {
+    serveModels([model('broken.glb', { readable: false, triangles: undefined })])
+    const ui = mount()
+    await ui.refresh()
+
+    expect(flags(cards()[0])).toEqual([['bad', 'unreadable']])
+  })
+
+  test('the colour is not the only carrier: every flag says a word', async () => {
+    serveModels([model('hero-rigged.glb', { rigged: true, humanoid: true })])
+    const ui = mount()
+    await ui.refresh()
+
+    for (const [, label] of flags(cards()[0])) expect(label.trim()).not.toBe('')
+  })
+})
+
+describe('about this model', () => {
+  test('the detail is folded away until asked for', async () => {
+    const user = userEvent.setup()
+    serveModels([model('female-warrior-9ab21c04-r1024-rigged.glb', {
+      triangles: 7687, rigged: true, humanoid: true, joints: 34,
+    })])
+    const ui = mount()
+    await ui.refresh()
+
+    const stats = document.querySelector('#stats')
+    const about = screen.getByRole('button', { name: /about this model/i })
+    expect(stats.hidden).toBe(true)
+    expect(about.getAttribute('aria-expanded')).toBe('false')
+
+    await user.click(about)
+
+    expect(stats.hidden).toBe(false)
+    expect(about.getAttribute('aria-expanded')).toBe('true')
+    // Everything the card stopped showing lives here.
+    expect(stats.textContent).toContain('female-warrior-9ab21c04-r1024-rigged.glb')
+    expect(stats.textContent).toContain('r1024')
+    expect(stats.textContent).toContain('7,687')
+    expect(stats.textContent).toContain('humanoid')
+
+    await user.click(about)
+    expect(stats.hidden).toBe(true)
+  })
+
+  test('it names the file a rigged asset replaced', async () => {
+    const user = userEvent.setup()
+    serveModels([model('hero-r512-rigged.glb', {
+      rigged: true, supersedes: ['hero-r512.glb'],
+    })])
+    const ui = mount()
+    await ui.refresh()
+
+    await user.click(screen.getByRole('button', { name: /about this model/i }))
+    expect(document.querySelector('#stats').textContent).toContain('hero-r512.glb')
+  })
+})
+
 describe('names a person can read', () => {
   test('the card shows the subject, not the digest or the variant', () => {
     expect(titleOf('red-sports-car-3f2a9c1b-r512.glb')).toBe('Red Sports Car')
@@ -753,7 +845,7 @@ describe('names a person can read', () => {
     expect(tagsOf('red-sports-car-3f2a9c1b-lowpoly6k-r512.glb')).toEqual(['lowpoly6k', 'r512'])
   })
 
-  test('a card carries its file name for hovering and keeps the tags in view', async () => {
+  test('a card shows the subject and keeps the file name one hover away', async () => {
     serveModels([model('female-warrior-9ab21c04-r1024-rigged.glb', { triangles: 7687 })])
     const ui = mount()
     await ui.refresh()
@@ -761,8 +853,10 @@ describe('names a person can read', () => {
     const card = cards()[0]
     expect(card.querySelector('.name').textContent).toBe('Female Warrior')
     expect(card.title).toBe('female-warrior-9ab21c04-r1024-rigged.glb')
-    expect(card.querySelector('.sub').textContent).toContain('r1024 · rigged')
-    expect(card.querySelector('.sub').textContent).toContain('7.7k tris')
+    // The digest and the resolution tag are not on the card any more. They
+    // were never the question being asked while looking at a grid of models.
+    expect(card.textContent).not.toContain('r1024')
+    expect(card.textContent).not.toContain('9ab21c04')
   })
 
   test('the viewer bar still spells the file name out in full', async () => {

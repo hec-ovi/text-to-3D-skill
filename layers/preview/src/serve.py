@@ -171,9 +171,32 @@ def glb_stats(path):
     if clips:
         stats["animations"] = clips
     skins = gltf.get("skins", [])
+    stats["rigged"] = bool(skins)
     if skins:
         stats["joints"] = len(skins[0].get("joints", []))
+        stats["humanoid"] = _humanoid(gltf, skins[0])
     return stats
+
+
+# What a rig has to carry to be worth calling humanoid: a root and both legs.
+# Anything with fewer is a skeleton, but not one a walk cycle means anything on.
+HUMANOID_BONES = ("Hips", "LeftUpLeg", "RightUpLeg")
+
+
+def _humanoid(gltf, skin):
+    """Whether this skeleton is a named humanoid, read off the joint names.
+
+    The rig layer names bones Mixamo's way precisely so a clip authored
+    elsewhere plays without retargeting, and that same naming is what makes
+    the question answerable here from the file alone.
+    """
+    nodes = gltf.get("nodes", [])
+    names = set()
+    for index in skin.get("joints", []):
+        if 0 <= index < len(nodes):
+            name = nodes[index].get("name", "")
+            names.add(name.split(":")[-1])
+    return all(bone in names for bone in HUMANOID_BONES)
 
 
 def variant_key(name):

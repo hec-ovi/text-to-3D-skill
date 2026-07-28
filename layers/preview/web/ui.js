@@ -135,6 +135,7 @@ const ICON = {
   // for, which is also what the clips play on.
   character: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="3.1" r="1.7"/><path d="M8 4.8v5M8 6.4 4.6 8.6M8 6.4l3.4 2.2M8 9.8l-2.2 3.4M8 9.8l2.2 3.4"/></svg>`,
   sliders: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.6 4.6h10.8M2.6 11.4h10.8"/><circle cx="6" cy="4.6" r="1.6"/><circle cx="10.4" cy="11.4" r="1.6"/></svg>`,
+  info: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.7"/><path d="M8 7.2v4"/><circle cx="8" cy="5.1" r="0.5" fill="currentColor" stroke="none"/></svg>`,
   pause: `<svg class="i i-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="4.7" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/><rect x="9" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/></svg>`,
 }
 
@@ -244,7 +245,11 @@ const LAYOUT = `
 </div>
 
 <footer class="statusbar">
-  <dl id="stats"></dl>
+  <button id="about" class="btn btn-quiet" type="button"
+          aria-expanded="false" aria-controls="stats">
+    ${ICON.info}About this model
+  </button>
+  <dl id="stats" hidden></dl>
   <span class="spacer"></span>
   <output id="status" role="status">Loading…</output>
 </footer>
@@ -304,6 +309,7 @@ export function mountUi(root, options = {}) {
     sourceNote: root.querySelector('#source-note'),
     currentName: root.querySelector('#current-name'),
     stats: root.querySelector('#stats'),
+    about: root.querySelector('#about'),
     motion: root.querySelector('#motion'),
     clipList: root.querySelector('#clip-list'),
     playPause: root.querySelector('#play-pause'),
@@ -352,11 +358,25 @@ export function mountUi(root, options = {}) {
     }
   }
 
+  /**
+   * Everything about the loaded file, for the About panel.
+   *
+   * This is where the file name, the resolution tag and the timestamp went.
+   * They are real and occasionally needed; they were just never the thing
+   * being asked while scanning a grid of models, and they crowded out the
+   * three flags that were.
+   */
   function statsFor(model) {
-    const entries = [['size', formatBytes(model.byteSize)]]
+    const entries = [['file', model.name], ['id', keyOf(model)],
+                     ['size', formatBytes(model.byteSize)]]
     if (typeof model.triangles === 'number') entries.push(['triangles', formatCount(model.triangles)])
     if (typeof model.materials === 'number') entries.push(['materials', formatCount(model.materials)])
     if (typeof model.joints === 'number') entries.push(['joints', formatCount(model.joints)])
+    if (model.rigged) entries.push(['skeleton', model.humanoid ? 'humanoid' : 'other'])
+    const tags = tagsOf(model.name)
+    if (tags.length) entries.push(['variant', tags.join(' · ')])
+    if (model.supersedes) entries.push(['replaces', model.supersedes.join(', ')])
+    if (model.source) entries.push(['from', model.source.name])
     entries.push(['modified', formatAge(model.modifiedAt)])
     return entries
   }
@@ -510,13 +530,23 @@ export function mountUi(root, options = {}) {
     return thumb
   }
 
-  /** The line under a name: what makes two files with one subject tell apart. */
-  function subLine(model) {
-    const line = tagsOf(model.name)
-    if (model.readable === false) line.push('unreadable')
-    else if (typeof model.triangles === 'number') line.push(`${formatShortCount(model.triangles)} tris`)
-    line.push(formatBytes(model.byteSize), formatAge(model.modifiedAt))
-    return line.join(' · ')
+  /**
+   * The flags under a name.
+   *
+   * This line used to read `r1024 · rigged · 11.8k tris · 1.7 MB · 3 days ago`,
+   * which is five facts in the order they were easiest to produce and answers
+   * no question anybody has while looking at a grid of characters. The
+   * questions are: how heavy is it, is it a person, can it move. So it is three
+   * flags, each one a yes or a number, and everything else moved to About.
+   */
+  function flagsFor(model) {
+    if (model.readable === false) return [{ label: 'unreadable', kind: 'bad' }]
+    const flags = [{ label: formatBytes(model.byteSize), kind: 'size' }]
+    if (model.humanoid) flags.push({ label: 'Humanoid', kind: 'humanoid' })
+    flags.push(model.rigged
+      ? { label: 'Rigged', kind: 'rigged' }
+      : { label: 'Static', kind: 'static' })
+    return flags
   }
 
   function meta(model) {
@@ -526,8 +556,14 @@ export function mountUi(root, options = {}) {
     name.className = 'name'
     name.textContent = titleOf(model.name)
     const sub = document.createElement('span')
-    sub.className = 'sub'
-    sub.textContent = subLine(model)
+    sub.className = 'flags'
+    for (const flag of flagsFor(model)) {
+      const chip = document.createElement('span')
+      chip.className = 'flag'
+      chip.dataset.kind = flag.kind
+      chip.textContent = flag.label
+      sub.append(chip)
+    }
     wrap.append(name, sub)
     return wrap
   }
@@ -734,6 +770,14 @@ export function mountUi(root, options = {}) {
   el.tabModel.addEventListener('click', () => setMode('model'))
   el.tabImage.addEventListener('click', () => setMode('image'))
   el.playPause.addEventListener('click', () => setPlaying(!playing))
+  // Folded away by default. The file name and the timestamp are real and
+  // occasionally needed; they were never what was being asked while looking at
+  // the model itself.
+  el.about.addEventListener('click', () => {
+    const open = el.about.getAttribute('aria-expanded') === 'true'
+    el.about.setAttribute('aria-expanded', String(!open))
+    el.stats.hidden = open
+  })
 
   return {
     elements: el,

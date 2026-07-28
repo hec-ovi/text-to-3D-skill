@@ -470,6 +470,50 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   white-space: nowrap;
 }
 
+/* Three flags, not five facts. Each one answers a question somebody actually
+   has while scanning a grid of characters: how heavy, is it a person, can it
+   move. Colour carries the answer at a glance and the word carries it for
+   anyone who cannot use the colour, so neither is load-bearing alone. */
+.flags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+.flag {
+  flex: none;
+  padding: 1px 5px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
+}
+.flag[data-kind="size"] {
+  color: var(--text-3);
+  border-color: var(--line-2);
+}
+.flag[data-kind="humanoid"] {
+  color: #8ab4f8;
+  background: rgba(138, 180, 248, 0.11);
+  border-color: rgba(138, 180, 248, 0.3);
+}
+.flag[data-kind="rigged"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.flag[data-kind="static"] {
+  color: var(--text-3);
+  border-color: var(--line);
+}
+.flag[data-kind="bad"] {
+  color: var(--error);
+  background: rgba(226, 114, 106, 0.1);
+  border-color: rgba(226, 114, 106, 0.35);
+}
+
 .note {
   margin: 0;
   padding: 2px 12px 10px;
@@ -764,6 +808,9 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   flex-wrap: wrap;
 }
 
+#about[aria-expanded="true"] { color: var(--text); background: var(--surface-2); }
+#about[aria-expanded="true"] .i { color: var(--accent); }
+
 dl#stats {
   display: flex;
   align-items: baseline;
@@ -771,6 +818,7 @@ dl#stats {
   margin: 0;
   flex-wrap: wrap;
 }
+dl#stats dd:last-of-type { margin-right: 0; }
 dl#stats dt {
   font-size: 10px;
   letter-spacing: 0.07em;
