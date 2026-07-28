@@ -99,3 +99,43 @@ Measured on the gfx1151 box, same input image and seed, res 512:
 | engine time | 138.5 s | 136.8 s |
 
 **15.7x smaller for the same run time.** The time is the point: the simplifier still walks the 6.5 M face dual-grid mesh down round by round, and stopping at 4K instead of 150K saves a handful of rounds at the cheap end. What you buy is the file and everything downstream of it, not the generation. The result validates clean against the Khronos glTF-Validator: 3810 triangles, 2970 vertices, 3 textures, 0 errors and 0 warnings.
+
+### 5. Cut the subject from the source image, not from a squashed square
+
+`birefnet_cutout` resized the input to 1024x1024 to run the matte, then took
+the subject crop out of that same square. BiRefNet wants 1024x1024 and does not
+care about aspect ratio, because a matte is a per-pixel foreground probability.
+The crop does care: cutting from the squashed square hands the reconstructor a
+figure stretched by the source aspect ratio, and it faithfully rebuilds those
+proportions.
+
+That is not a subtle artefact. The pipeline renders characters portrait at
+832x1216, because a standing figure in a square frame spends half its width on
+backdrop, so every character went through a 1216/832 = **1.46x horizontal
+stretch** before the model saw it. The output was a short, wide, heavy-looking
+person. Nothing in the mesh, the rig or the viewer suggested an image resize
+was responsible.
+
+The matte still runs at 1024x1024. Its alpha is then resampled back to the
+source resolution and the cut is taken from the original pixels, which also
+stops the crop being capped at 1024 on the long edge.
+
+Measured on a generated character, 832x1216 in, resolution 1024, 12K face
+target:
+
+| | before | after |
+| --- | --- | --- |
+| mesh bounding box | 0.4880 x 0.9822 x 0.2356 | 0.3319 x 0.9866 x 0.2398 |
+| height / width | 2.01 | **2.97** |
+| triangles | 11958 | 11310 |
+| engine time | 345.3 s | 240.5 s |
+
+The height is unchanged and the width is down 32%, which is the 1.46x stretch
+removed: 0.4880 / 1.46 = 0.334 against 0.3319 measured. The engine also got
+faster, because the reconstructor is no longer spending resolution on a figure
+smeared across a wider silhouette.
+
+The `auto` background removal picks BiRefNet, so this affected every character
+the toolkit produced. The `threshold` path was always correct: it crops a
+square region out of the original image and never resizes it.
+

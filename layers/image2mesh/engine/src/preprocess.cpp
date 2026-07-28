@@ -78,20 +78,38 @@ std::vector<unsigned char> birefnet_cutout(const std::string& path, const Model&
     int W, H, ch;
     unsigned char* img = stbi_load(path.c_str(), &W, &H, &ch, 4);
     if (!img) { fprintf(stderr, "birefnet_cutout: cannot load %s\n", path.c_str()); sz = 0; return {}; }
-    // resize to 1024 RGBA for the matte + cutout
+    // The matte runs at 1024x1024 because that is the size BiRefNet was trained
+    // at, and squashing a portrait into that square costs the matte nothing: it
+    // is a per-pixel foreground probability, not a shape anybody measures.
+    //
+    // The cutout is a different matter. Cutting from the squashed square hands
+    // the reconstructor a figure stretched by the source aspect ratio, and it
+    // faithfully rebuilds those proportions: an 832x1216 character came out
+    // 1.46 times too wide, which reads as a short, heavy person and not as a
+    // bug in an image resize. So the alpha is brought back to the source
+    // resolution and the cut is taken from the original pixels. That also
+    // stops the crop being limited to 1024 on the long edge.
     const int R = 1024;
     std::vector<unsigned char> r1024((size_t)R*R*4);
     stbir_resize_uint8(img, W, H, 0, r1024.data(), R, R, 0, 4);
-    stbi_image_free(img);
     // ImageNet-normalized CHW for the matte
     const float mean[3] = {0.485f,0.456f,0.406f}, std[3] = {0.229f,0.224f,0.225f};
     std::vector<float> chw((size_t)3*R*R);
     for (int c = 0; c < 3; ++c) for (int i = 0; i < R*R; ++i)
         chw[(size_t)c*R*R + i] = (r1024[(size_t)i*4 + c] / 255.0f - mean[c]) / std[c];
     std::vector<float> logits = birefnet_matte(bm, chw, gpu);   // [R*R]
-    std::vector<float> alpha((size_t)R*R);
-    for (size_t i = 0; i < alpha.size(); ++i) alpha[i] = 1.0f / (1.0f + std::exp(-logits[i]));
-    return alpha_to_cutout(r1024.data(), R, R, alpha, sz);
+    std::vector<float> matte((size_t)R*R);
+    for (size_t i = 0; i < matte.size(); ++i) matte[i] = 1.0f / (1.0f + std::exp(-logits[i]));
+
+    std::vector<float> alpha((size_t)W*H);
+    if (W == R && H == R) {
+        alpha = matte;
+    } else {
+        stbir_resize_float(matte.data(), R, R, 0, alpha.data(), W, H, 0, 1);
+    }
+    std::vector<unsigned char> crop = alpha_to_cutout(img, W, H, alpha, sz);
+    stbi_image_free(img);
+    return crop;
 }
 
 } // namespace trellis
