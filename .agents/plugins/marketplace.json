@@ -1,0 +1,20 @@
+{
+  "name": "text-to-3d-skill",
+  "interface": {
+    "displayName": "Text to 3D Skill"
+  },
+  "plugins": [
+    {
+      "name": "text-to-3d-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/text-to-3d-codex"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

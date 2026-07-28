@@ -35,6 +35,8 @@ This release produces static models. Blender, rigging, skeletons, and humanoid a
 /reload-plugins
 ```
 
+Codex reads the same skill through `.agents/plugins/marketplace.json`, which installs `plugins/text-to-3d-codex` and its `/text-to-3d` command.
+
 For a checkout:
 
 ```bash

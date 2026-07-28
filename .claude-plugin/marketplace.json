@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Local text to static GLB generation on an AMD Strix Halo iGPU",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "text-to-3d",
       "source": "./plugins/text-to-3d",
       "description": "Turns one subject description into a static textured GLB on a Strix Halo iGPU. The skill initializes ComfyUI, a resident Vulkan TRELLIS.2 engine, and the local preview gallery, then generates to an optional face-count target.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": {
         "name": "Hector Oviedo"
       },

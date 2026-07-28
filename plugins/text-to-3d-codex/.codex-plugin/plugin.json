@@ -1,0 +1,40 @@
+{
+  "name": "text-to-3d-codex",
+  "version": "0.3.1",
+  "description": "Text to a static, textured GLB for Codex agents: one-command local startup, FLUX.2 klein, a Vulkan-only TRELLIS.2 engine, low-poly targets, and a turntable viewer.",
+  "author": {
+    "name": "Hector Oviedo",
+    "url": "https://github.com/hec-ovi"
+  },
+  "homepage": "https://github.com/hec-ovi/text-to-3D-skill",
+  "repository": "https://github.com/hec-ovi/text-to-3D-skill",
+  "license": "MIT",
+  "keywords": [
+    "3d",
+    "gltf",
+    "glb",
+    "trellis",
+    "vulkan",
+    "strix-halo",
+    "text-to-3d",
+    "agent-skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Text to 3D",
+    "shortDescription": "Generate local, game-ready GLB assets from one description",
+    "longDescription": "Start the local harness, render one reference image with FLUX.2 klein, reconstruct it into a textured GLB on a Vulkan-only TRELLIS.2 engine, and open it in the bundled turntable viewer.",
+    "developerName": "Hector Oviedo",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://github.com/hec-ovi/text-to-3D-skill",
+    "defaultPrompt": [
+      "Use /text-to-3d <subject> to generate a textured GLB locally."
+    ],
+    "screenshots": [],
+    "brandColor": "#57CFA2"
+  }
+}
