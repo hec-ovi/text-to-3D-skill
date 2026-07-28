@@ -1,16 +1,31 @@
 <h1 align="center">text-to-3D-skill</h1>
 
-<p align="center"><img src="docs/assets/01.gif" alt=""></p>
-<p align="center"><img src="docs/assets/02.gif" alt=""></p>
-<p align="center"><img src="docs/assets/03.gif" alt=""></p>
-<p align="center"><img src="docs/assets/04.gif" alt=""></p>
-
-Type one subject description and get a textured GLB generated locally on an AMD Strix Halo APU. A humanoid can then be rigged and given clips, on the same box, with no Blender.
+Type one subject description and get a textured GLB, generated locally on an AMD Strix Halo APU. A humanoid can then be rigged and given clips on the same box, with no Blender and no CUDA anywhere in it.
 
 ```text
 prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB
                                                   character ->  SkinTokens (ROCm) -> rigged GLB
 ```
+
+<p align="center">
+  <img src="docs/assets/01.gif" alt="A red sports car generated from a prompt and turning in the local viewer">
+  <br><sub>Red sports car</sub>
+</p>
+
+<p align="center">
+  <img src="docs/assets/02.gif" alt="A generated sport motorcycle with the viewer's wireframe control switched on">
+  <br><sub>Sport motorcycle, wireframe on</sub>
+</p>
+
+<p align="center">
+  <img src="docs/assets/03.gif" alt="A generated bonsai tree in a ceramic pot turning in the local viewer">
+  <br><sub>Bonsai tree in a ceramic pot</sub>
+</p>
+
+<p align="center">
+  <img src="docs/assets/04.gif" alt="The gallery contact sheet, with the generated sport motorcycle open">
+  <br><sub>The gallery, and the motorcycle</sub>
+</p>
 
 ## What it does
 
