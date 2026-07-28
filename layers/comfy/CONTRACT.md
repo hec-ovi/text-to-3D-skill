@@ -62,4 +62,5 @@ No dependency on any other layer in this repo. This layer never imports `image2m
 1. Adding a knob: add it to `schema/mesh_node_request.json` with a `default`, map it into the multipart fields, add the widget in `src/node.py`, bump `contractVersion` minor.
 2. Keep `src/client.py` stdlib. The moment it imports torch, the contract tests need a GPU image to run.
 3. The workflow template in `workflows/` is a fixture, not an interface. A graph saved from a newer ComfyUI is fine to replace it with, as long as the node ids the README quotes are updated with it.
-4. Run `uvx pytest tests/ -q` from this folder. The tests drive the real CLI against a stub engine over real HTTP; no GPU and no weights.
+4. `docker/` builds the optional one-container image, ComfyUI with the engine beside it. Its supervisor encodes one rule, that the container dies when either child does, and that rule has tests: change the script and run them.
+5. Run `uvx pytest tests/ -q` from this folder. The tests drive the real CLI against a stub engine over real HTTP, and the supervisor against stub children; no GPU and no weights.
