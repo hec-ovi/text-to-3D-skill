@@ -46,6 +46,7 @@ reconstruction, which is the part that took a Vulkan port to make work at all.
 
 ## Things that will bite you
 
+- A GLB written by the node is owned by root, because ComfyUI's container runs as root and the output directory is a bind mount. The preview reads it fine; deleting it from the host needs sudo. The CLI path writes as you.
 - **Do not spawn `t2m-cli` per graph run.** Model load is the fixed cost the resident server exists to pay once. A subprocess per node execution puts it back on every asset.
 - The container reaches the engine through `host.docker.internal`, which Linux does not provide by default. The overlay adds `host-gateway` for it; without that the node reports `ENGINE_UNREACHABLE` and the endpoint looks fine in the widget.
 - `src/client.py` must stay stdlib. It is what the tests drive, and the moment it imports torch the suite needs a GPU image to run.

@@ -479,16 +479,11 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- motion ------------------------------------------------------------- */
 
-/* In the viewer's footer, in a row, next to the render controls: a clip is a
+/* In the viewer's footer, on its own row under the view controls: a clip is a
    fact about the loaded asset, the same as auto rotate is. It was a stacked
    panel in the sidebar, which put it among the models and made "walk" look
    like something you pick instead of a model rather than for one. */
-.motion {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
+.motion { min-width: 0; }
 .clip-list {
   display: flex;
   align-items: center;
@@ -533,16 +528,44 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   grid-template-rows: auto 1fr auto;
 }
 
+/* Rows, not one long line. What changes the render and what changes the asset
+   are two different questions, and wrapping them into each other at a narrow
+   window put half a sentence about animation on the end of the view controls.
+   Each row is captioned with an icon, so which is which is readable before
+   anything is loaded. */
 .viewer-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.viewer-foot > * {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 40px;
   padding: 6px 12px;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
   flex-wrap: wrap;
 }
+/* Only between rows, so the strip has one outer edge however many rows it has. */
+.viewer-foot > * + *:not([hidden]) { border-top: 1px solid var(--line-soft); }
+
+/* The row's own name. Decorative to a screen reader, which reads the group's
+   aria-label instead, so the icon and the word are one aria-hidden unit. */
+.foot-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 62px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  user-select: none;
+}
+.foot-cap .i { width: 15px; height: 15px; color: var(--text-2); }
 /* An empty strip is worse than no strip: over the source PNG none of these
    controls mean anything, and with no readable file loaded none of them do
    anything. */

@@ -131,6 +131,10 @@ const ICON = {
   frame: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="2.3" y="2.9" width="11.4" height="10.2"/><circle cx="8" cy="8" r="2.5"/></svg>`,
   recenter: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.7 5.9V2.7h3.2M13.3 5.9V2.7h-3.2M2.7 10.1v3.2h3.2M13.3 10.1v3.2h-3.2"/><circle cx="8" cy="8" r="2.1"/></svg>`,
   play: `<svg class="i i-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 3.6 12 8l-6.4 4.4z" fill="currentColor" stroke="none"/></svg>`,
+  // A figure standing with its arms out: the A-pose the character framing asks
+  // for, which is also what the clips play on.
+  character: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="3.1" r="1.7"/><path d="M8 4.8v5M8 6.4 4.6 8.6M8 6.4l3.4 2.2M8 9.8l-2.2 3.4M8 9.8l2.2 3.4"/></svg>`,
+  sliders: `<svg class="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.6 4.6h10.8M2.6 11.4h10.8"/><circle cx="6" cy="4.6" r="1.6"/><circle cx="10.4" cy="11.4" r="1.6"/></svg>`,
   pause: `<svg class="i i-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="4.7" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/><rect x="9" y="3.7" width="2.3" height="8.6" fill="currentColor" stroke="none"/></svg>`,
 }
 
@@ -214,6 +218,7 @@ const LAYOUT = `
 
       <div class="viewer-foot">
         <div class="toolbar" id="render-controls" role="group" aria-label="Render controls">
+          <span class="foot-cap" aria-hidden="true">${ICON.sliders}View</span>
           <label class="toggle"><input id="autorotate" type="checkbox" checked><span>Auto rotate</span></label>
           <span class="slider">
             <span class="cap">Speed</span>
@@ -227,7 +232,7 @@ const LAYOUT = `
         </div>
 
         <section class="motion" id="motion" hidden>
-          <span class="rule"></span>
+          <span class="foot-cap" aria-hidden="true">${ICON.character}Motion</span>
           <button id="play-pause" class="btn" type="button" aria-pressed="true">
             ${ICON.pause}${ICON.play}<span class="play-label">Pause</span>
           </button>

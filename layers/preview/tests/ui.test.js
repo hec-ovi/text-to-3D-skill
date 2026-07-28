@@ -395,6 +395,22 @@ describe('motion', () => {
     expect(document.querySelector('.viewer-foot #clip-list')).toBeTruthy()
   })
 
+  test('the footer is two captioned rows, view above motion', async () => {
+    serveModels([RIGGED])
+    const ui = mount()
+    await ui.refresh()
+
+    const rows = Array.from(document.querySelectorAll('.viewer-foot > *'))
+    expect(rows.map((r) => r.id)).toEqual(['render-controls', 'motion'])
+    expect(rows.map((r) => r.querySelector('.foot-cap').textContent.trim()))
+      .toEqual(['View', 'Motion'])
+    // Decorative: a screen reader reads the group's own label, not the caption.
+    for (const row of rows) {
+      expect(row.querySelector('.foot-cap').getAttribute('aria-hidden')).toBe('true')
+      expect(row.querySelector('.foot-cap svg')).toBeTruthy()
+    }
+  })
+
   test('a rigged model lists its clips and starts on the first', async () => {
     serveModels([RIGGED])
     const onClipChange = vi.fn()

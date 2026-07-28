@@ -117,6 +117,14 @@ http://127.0.0.1:8190/?id=<asset-id>
 
 The viewer is self-contained. Its three.js files are vendored, and it reads models directly from the output directory.
 
+## One graph in ComfyUI
+
+`init` mounts a `TextTo3DMesh` node into the ComfyUI container and points it at the engine. Load [`layers/comfy/workflows/text_to_3d.json`](layers/comfy/workflows/text_to_3d.json) and the whole pipeline is one graph: klein renders the reference image, the node reconstructs it, and the GLB lands in the directory the preview server is already watching. `--no-comfy-node` starts ComfyUI without it.
+
+The node is an HTTP client for the resident Vulkan server, not a port of TRELLIS into ComfyUI. The native nodes are not an option on this hardware: every maintained wrapper builds FlexGEMM, CuMesh, nvdiffrast and flash-attn, and Microsoft's own HIP path targets gfx942, not gfx1151.
+
+Two containers is the default. [`layers/comfy/docker/`](layers/comfy/docker/Dockerfile) builds a single-artifact image with the engine inside the ComfyUI one, for when that is the requirement. It costs the engine's unprivileged sandbox and reloads the TRELLIS weights whenever ComfyUI restarts, and it makes nothing faster.
+
 ## Why MCP was discarded
 
 For practicality, the MCP transport was discarded. The protocol process duplicated schemas and wrapped local commands that the agent can already run directly.
@@ -131,6 +139,7 @@ The skill now starts the harness on demand through `init`, waits until the servi
 | Text to reference image | [`layers/text2image/CONTRACT.md`](layers/text2image/CONTRACT.md) |
 | Image to textured GLB | [`layers/image2mesh/CONTRACT.md`](layers/image2mesh/CONTRACT.md) |
 | Text-to-GLB stage order | [`layers/pipeline/CONTRACT.md`](layers/pipeline/CONTRACT.md) |
+| The ComfyUI node and one-graph workflow | [`layers/comfy/CONTRACT.md`](layers/comfy/CONTRACT.md) |
 | Local browser preview | [`layers/preview/CONTRACT.md`](layers/preview/CONTRACT.md) |
 
 Each layer validates JSON envelopes at its boundary and imports no sibling internals. Binary assets cross layers by path, media type, byte size, and sha256.
