@@ -1,6 +1,6 @@
 ---
 name: text-to-3d
-description: Initialize and operate a fully local text-to-3D toolkit that turns one subject description into a textured, optionally low-poly GLB using FLUX.2 klein through ComfyUI and TRELLIS.2 on Vulkan. Use for starting the local generation harness, creating static 3D models, meshes, GLBs or glTF assets from words, preparing game or three.js assets, batching several models, or opening the local preview gallery.
+description: Initialize and operate a fully local text-to-3D toolkit that turns one subject description into a textured GLB, at full density or to a triangle budget, using FLUX.2 klein through ComfyUI and TRELLIS.2 on Vulkan. Use for starting the local generation harness, creating static 3D models, meshes, GLBs or glTF assets from words, preparing game or three.js assets, batching several models, or opening the local preview gallery.
 ---
 
 # text-to-3d
@@ -17,7 +17,7 @@ prompt -> FLUX.2 klein (ComfyUI) -> PNG -> TRELLIS.2 (Vulkan) -> GLB
 | --- | --- | --- |
 | `init` | Start and verify the local harness | [Init](#init) |
 | `generate` | Generate one static GLB | [Generate](#generate) |
-| `lowpoly` | Generate to a triangle budget | [Low poly](#lowpoly) |
+| `budget` | Generate to a triangle budget | [Triangle budget](#budget) |
 | `preview` | Inspect generated models | [Preview](#preview) |
 | `batch` | Generate several models efficiently | [Batch](#batch) |
 
@@ -79,10 +79,17 @@ The result is a schema-validated JSON envelope. The GLB path, checksum, byte siz
 
 Inspect both the intermediate image and the GLB before reporting completion. A structurally valid model can still omit a requested part.
 
-<a id="lowpoly"></a>
-## Low poly
+<a id="budget"></a>
+## Triangle budget
 
-Always set a triangle budget for a game, engine, or web scene:
+A budget is a target, not a quality setting. The reconstruction runs at full
+detail either way and the simplifier collapses the result to the count asked
+for, with the texture baked afterwards onto the mesh that survives; measured at
+4000 faces the shape quality is within a degree of the 138K version. So a
+budget costs file size and nothing else, and asking for one never means asking
+for a cruder model.
+
+Set one for a game, engine, or web scene:
 
 ```bash
 python3 layers/pipeline/src/pipeline.py \
