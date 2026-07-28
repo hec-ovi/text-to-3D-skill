@@ -26,6 +26,12 @@
           "animations": { "type": "array", "items": { "type": "string" }, "description": "Clip names carried by the file, in file order. Absent when it has none, so the viewer can offer motion without downloading the asset first." },
           "joints": { "type": "integer", "minimum": 0, "description": "Joints in the first skin. Absent when the file has no skin." },
           "readable": { "type": "boolean", "description": "false when the file exists but does not parse as a GLB." },
+          "supersedes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "File names this entry replaced in the listing. A rigged asset is the mesh it was rigged from with a skeleton added, so listing both puts the same character on screen twice. The dropped file is named here, is still on disk, and is still servable by name."
+          },
           "source": {
             "type": "object",
             "description": "The image this mesh was reconstructed from, when one sits next to it. Paired by name: <stem>-r<res>.glb comes from <stem>.png. Absent when there is no match.",

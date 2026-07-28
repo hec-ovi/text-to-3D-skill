@@ -20,7 +20,7 @@ Entry point: `python3 src/serve.py --dir ../../out`. Python 3.10+, standard libr
 
 | Param | Schema | Postconditions |
 | --- | --- | --- |
-| `ModelList` from `GET /api/models` | [`schema/model_list.json`](schema/model_list.json) | One entry per `.glb` in the directory, sorted by `modifiedAt` newest first. Every entry has an `id`. `triangles` and `materials` are read out of each file, not guessed; a file that does not parse gets `readable: false` and is listed anyway rather than silently dropped. |
+| `ModelList` from `GET /api/models` | [`schema/model_list.json`](schema/model_list.json) | One entry per `.glb` in the directory, sorted by `modifiedAt` newest first, except that a `<stem>-rigged.glb` replaces the `<stem>.glb` it was rigged from and names it in `supersedes`. Every entry has an `id`. `triangles` and `materials` are read out of each file, not guessed; a file that does not parse gets `readable: false` and is listed anyway rather than silently dropped. |
 | `ModelList` from `GET /api/models?id=<id>` | [`schema/model_list.json`](schema/model_list.json) | The same envelope holding exactly the one matching entry, so a caller that resolved an id parses what it parses for a list. `404 NOT_FOUND` when nothing matches. |
 | GLB bytes from `GET /models/<name>` | none: the file verbatim | Served as `model/gltf-binary`, with an `ETag` over mtime and size and `Cache-Control: no-cache`. A reload revalidates and gets a 304; a regenerated asset changes both mtime and size, so a stale file can never win. |
 | Image bytes from `GET /images/<name>` | none: the file verbatim | Only `.png`, `.jpg`, `.jpeg` and `.webp` are served; anything else is a `NOT_FOUND`. Same `ETag` handling. |
@@ -53,6 +53,7 @@ Vendored: three.js `0.185.1` under `web/vendor/three/` (MIT, version recorded in
 - An `id` is stable for a given file name and unique within one listing: the file stem folded to `[A-Za-z0-9._-]`, disambiguated with a hash suffix when two names fold together. Two models can never share an id, because a shared id would serve the wrong file.
 - Paths that escape `--dir` are refused, checked with `os.path.commonpath`, not by string prefix.
 - A model that fails to parse is reported as unreadable and never handed to the loader.
+- A rigged asset is the mesh it was rigged from with a skeleton added, so only one of the pair is listed and it is the rigged one. The other is still on disk and still served by name; the entry that replaced it says which file that was.
 - The source image is paired by exact stem: `<stem>-r<res>.glb` comes from `<stem>.png`. The engine's own `<stem>-r<res>_base.png` texture atlas is an output, so it never matches and is never shown as the input.
 - The triangle count in the footer is the one three.js counted after building the geometry, not the one the server predicted. When they disagree, the renderer wins, because that is what you are looking at. The same rule holds for the clip list: the server's is what the file claims, the renderer's is what can be played.
 - The page works offline. Nothing is fetched from a CDN.

@@ -16,7 +16,9 @@ Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb
 
 The card art is the GLB, not the PNG it was reconstructed from. Using the source image was tempting and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have thrown half of it away. The source image is the fallback, for a model whose render fails or a page with no WebGL.
 
-A GLB imported from elsewhere gets its clips in the viewer footer when it already contains animation. The text-to-3D pipeline itself produces static GLBs.
+A GLB with animation gets its clips in the viewer footer. The mesh pipeline produces static GLBs; the rig layer is what puts clips in one.
+
+A rigged asset replaces the mesh it was rigged from in the list rather than sitting next to it. They are the same character, the rigged file is the same mesh with a skeleton added, and showing both is the same model twice. The one that is dropped is named in `supersedes` and is still served by name, so an existing link keeps working.
 
 The sidebar list is the page's one `listbox`, and its rows are the only `option`s. Sheet tiles are plain buttons carrying `aria-current`: two listboxes over the same models would be two selections for a screen reader to reconcile. Tiles look identical at rest, including the one that is loaded, and light up with an accent bar under the pointer; the sidebar row is where you read which model the turntable has.
 

@@ -179,6 +179,54 @@ def test_a_rigged_model_advertises_its_clips_and_joints(server):
     assert entry["joints"] == 19
 
 
+def test_a_rigged_asset_replaces_the_mesh_it_was_rigged_from(server):
+    """One character, one row. Two would be the same model twice."""
+    base, directory = server
+    (directory / "hero-r512.glb").write_bytes(make_glb())
+    (directory / "hero-r512-rigged.glb").write_bytes(
+        make_glb(animations=["idle", "walk"], joints=34))
+
+    payload = json.loads(get(base + "/api/models")[1])
+    validate(payload, MODEL_LIST_SCHEMA)
+
+    assert [m["name"] for m in payload["models"]] == ["hero-r512-rigged.glb"]
+    assert payload["models"][0]["supersedes"] == ["hero-r512.glb"]
+
+    # Dropped from the listing, not from the disk: an existing link still works.
+    assert get(base + "/models/hero-r512.glb")[0] == 200
+
+
+def test_the_superseded_mesh_is_still_resolvable_by_name(server):
+    base, directory = server
+    (directory / "hero-r512.glb").write_bytes(make_glb())
+    (directory / "hero-r512-rigged.glb").write_bytes(make_glb(joints=34))
+
+    status, body, _ = get(base + "/api/models?id=hero-r512.glb")
+    assert status == 404, "a superseded file should not resolve as a listed model"
+
+    listed = json.loads(get(base + "/api/models?id=hero-r512-rigged")[1])
+    assert listed["models"][0]["name"] == "hero-r512-rigged.glb"
+
+
+def test_a_rigged_asset_with_no_static_twin_is_listed_alone(server):
+    base, directory = server
+    (directory / "imported-rigged.glb").write_bytes(make_glb(joints=12))
+
+    payload = json.loads(get(base + "/api/models")[1])
+    assert [m["name"] for m in payload["models"]] == ["imported-rigged.glb"]
+    assert "supersedes" not in payload["models"][0]
+
+
+def test_two_resolutions_are_two_assets_not_a_pair(server):
+    """Only -rigged collapses. A 512 and a 1024 are different models."""
+    base, directory = server
+    (directory / "hero-r512.glb").write_bytes(make_glb())
+    (directory / "hero-r1024.glb").write_bytes(make_glb())
+
+    payload = json.loads(get(base + "/api/models")[1])
+    assert len(payload["models"]) == 2
+
+
 def test_a_static_model_says_nothing_about_clips(server):
     base, directory = server
     (directory / "prop.glb").write_bytes(make_glb())

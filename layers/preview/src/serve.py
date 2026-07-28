@@ -176,8 +176,25 @@ def glb_stats(path):
     return stats
 
 
+def variant_key(name):
+    """What two files have to share to be the same asset at different stages.
+
+    `hero-r512.glb` and `hero-r512-rigged.glb` are one asset: the rigged file
+    is the static one with a skeleton added, same mesh, same textures. Listing
+    both puts the same character on screen twice, and the second copy is never
+    the one anybody wants.
+    """
+    stem = os.path.splitext(name)[0]
+    return re.sub(r"-rigged$", "", stem)
+
+
 def list_models(directory):
-    """ModelList envelope for `directory`, newest first."""
+    """ModelList envelope for `directory`, newest first.
+
+    A rigged asset supersedes the mesh it was rigged from, so only one of the
+    pair is listed. The one that is dropped is named on the entry that replaced
+    it rather than vanishing: it is still on disk and still servable by name.
+    """
     models = []
     taken = set()
     try:
@@ -185,11 +202,29 @@ def list_models(directory):
     except OSError:
         names = []
 
+    # Rigged wins its group, so it is the file that gets read and listed.
+    groups = {}
+    for name in names:
+        if name.lower().endswith(".glb") and os.path.isfile(os.path.join(directory, name)):
+            groups.setdefault(variant_key(name), []).append(name)
+    superseded = {}
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        rigged = [n for n in group if os.path.splitext(n)[0].endswith("-rigged")]
+        if not rigged:
+            continue
+        winner = max(rigged, key=lambda n: os.path.getmtime(os.path.join(directory, n)))
+        superseded[winner] = [n for n in group if n != winner]
+    dropped = {name for names_ in superseded.values() for name in names_}
+
     for name in names:
         if not name.lower().endswith(".glb"):
             continue
         path = os.path.join(directory, name)
         if not os.path.isfile(path):
+            continue
+        if name in dropped:
             continue
         stat = os.stat(path)
         ident = model_id(name, taken)
@@ -211,6 +246,8 @@ def list_models(directory):
         source = find_source(directory, name)
         if source:
             entry["source"] = source
+        if name in superseded:
+            entry["supersedes"] = superseded[name]
         models.append(entry)
 
     models.sort(key=lambda m: m["modifiedAt"], reverse=True)
