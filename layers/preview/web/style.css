@@ -490,6 +490,9 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* The dot belongs to the flag it precedes, so it takes that flag's colour
+   through currentColor. A row of grey dots between coloured words reads as a
+   separator someone forgot to style. */
 .flag + .flag::before {
   content: "";
   display: inline-block;
@@ -497,12 +500,17 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
   height: 3px;
   margin-right: 7px;
   vertical-align: 2px;
-  background: var(--line-2);
+  background: currentColor;
+  opacity: 0.55;
 }
+
+/* Four distinct hues, none of them repeated, because two flags in the same
+   colour is the colour saying nothing. Size stays grey: it is a number, not a
+   category, and giving it a hue would make it compete with the answers. */
 .flag[data-kind="size"] { color: var(--text-3); }
-.flag[data-kind="model"] { color: var(--text-3); }
+.flag[data-kind="model"] { color: #d8a657; }
 .flag[data-kind="humanoid"] { color: #8ab4f8; }
-.flag[data-kind="rigged"] { color: var(--accent); }
+.flag[data-kind="rigged"] { color: #5fc9b0; }
 .flag[data-kind="animated"] { color: #d9a4e8; }
 .flag[data-kind="bad"] { color: var(--error); }
 
