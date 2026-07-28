@@ -11,6 +11,7 @@ Each layer is a blackbox. Open one folder, read its `CONTRACT.md` and `schema/`,
 | The container: base image, Vulkan drivers, device access, GTT behaviour | [`layers/image2mesh/docker/`](../layers/image2mesh/docker/Dockerfile) | |
 | Stage order, what the CLI accepts, how failures are wrapped | [`layers/pipeline/`](../layers/pipeline/CONTRACT.md) | either stage's internals |
 | The ComfyUI node and the one-graph workflow | [`layers/comfy/`](../layers/comfy/CONTRACT.md) | the engine, which it only calls over HTTP |
+| Skeletons, skinning, bone naming, animation clips | [`layers/rig/`](../layers/rig/CONTRACT.md) | the mesh layers; it takes any GLB |
 | The viewer: controls, lighting, framing, rotation, the model list API | [`layers/preview/`](../layers/preview/CONTRACT.md) | anything that generates assets |
 | What an agent is told about this skill | [`SKILL.md`](../SKILL.md), then `scripts/sync-skill.sh` | the install copies, which are generated |
 | How the skill is packaged and installed | [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) | |

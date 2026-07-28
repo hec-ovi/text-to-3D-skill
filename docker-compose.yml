@@ -47,3 +47,38 @@ services:
       timeout: 5s
       retries: 40
       start_period: 600s
+
+  # The rig model. ROCm, not Vulkan: SkinTokens is PyTorch and the working
+  # gfx1151 torch lives in the ComfyUI image, so this one needs /dev/kfd where
+  # the mesh engine deliberately does not.
+  rig:
+    build:
+      context: .
+      dockerfile: layers/rig/docker/Dockerfile
+    image: text-to-3d/rig:rocm
+    container_name: t2m-rig
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${RENDER_GID:-990}"
+      - "${VIDEO_GID:-44}"
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
+      - HIP_VISIBLE_DEVICES=0
+    ipc: host
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - ${SKINTOKENS_MODELS:-/home/hec/models/hf/SkinTokens}:/models:ro
+      - ${OUT_DIR:-./out}:/work
+    ports:
+      - "${RIG_PORT:-8191}:8191"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8191/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 40
+      start_period: 300s

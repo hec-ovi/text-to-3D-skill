@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/rig_result.json",
+  "title": "RigResult",
+  "description": "Params out for the rig layer. The rigged GLB crosses by reference and has been parsed back from its own bytes before this envelope is emitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "glb", "skeleton", "animations", "elapsedMs"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "glb": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "mediaType", "byteSize", "checksum"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "const": "model/gltf-binary" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": {
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      }
+    },
+    "skeleton": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["joints", "root", "convention", "names"],
+      "properties": {
+        "joints": { "type": "integer", "minimum": 1 },
+        "root": { "type": "string" },
+        "convention": {
+          "type": "string",
+          "const": "mixamo",
+          "description": "Bone naming. Mixamo's, so a clip authored against that skeleton plays with no retargeting step."
+        },
+        "names": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "animations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Clip names written into the file, in the order the viewer lists them. Empty when animate was false."
+    },
+    "maxInfluences": { "type": "integer", "minimum": 1, "maximum": 4 },
+    "timings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  }
+}

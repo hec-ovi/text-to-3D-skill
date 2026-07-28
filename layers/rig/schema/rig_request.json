@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/rig_request.json",
+  "title": "RigRequest",
+  "description": "Params in for the rig layer: one static GLB by reference, plus what to do with it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["glb"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "glb": {
+      "type": "object",
+      "description": "Reference to a static GLB. Shape-compatible with image2mesh's MeshResult.glb.",
+      "additionalProperties": true,
+      "required": ["uri"],
+      "properties": {
+        "uri": { "type": "string" },
+        "mediaType": { "type": "string", "const": "model/gltf-binary" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "checksum": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": {
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      }
+    },
+    "animate": {
+      "type": "boolean",
+      "default": true,
+      "description": "Add generated clips. false skins the mesh and stops, for a caller bringing its own animation."
+    },
+    "maxInfluences": {
+      "type": "integer",
+      "enum": [1, 2, 3, 4],
+      "default": 4,
+      "description": "Joints per vertex kept. glTF's first JOINTS/WEIGHTS set holds four and most engines read only that one."
+    },
+    "endpoint": {
+      "type": "string",
+      "minLength": 1,
+      "default": "http://127.0.0.1:8191",
+      "description": "Base URL of the resident rig server."
+    },
+    "outDir": { "type": "string", "minLength": 1 },
+    "timeoutSeconds": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 7200,
+      "default": 1800
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/error.json",
+  "title": "RigError",
+  "description": "Closed error set for the rig layer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "message"],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1.0" },
+    "code": {
+      "type": "string",
+      "enum": [
+        "INVALID_REQUEST",
+        "GLB_MISSING",
+        "CHECKSUM_MISMATCH",
+        "GLB_INVALID",
+        "NOT_A_CHARACTER",
+        "MODEL_UNREACHABLE",
+        "MODEL_FAILED",
+        "TIMEOUT",
+        "OUTPUT_WRITE_FAILED"
+      ]
+    },
+    "message": { "type": "string" },
+    "detail": { "type": "string" }
+  }
+}
