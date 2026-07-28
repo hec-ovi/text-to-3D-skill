@@ -34,12 +34,23 @@ import numpy as np
 import torch
 
 SKINTOKENS = os.environ.get("T2M_SKINTOKENS", "/opt/skintokens")
+MODELS = os.environ.get("T2M_RIG_MODELS", "/models")
 CKPT = os.environ.get("T2M_RIG_CKPT",
                       "/models/articulation_xl_quantization_256_token_4/grpo_1400.ckpt")
 PORT = int(os.environ.get("T2M_RIG_PORT", "8191"))
 
 sys.path.insert(0, SKINTOKENS)
 os.chdir(SKINTOKENS)
+
+# The rig checkpoint names its VAE checkpoint by a path relative to the working
+# directory, `experiments/skin_vae_2_10_32768/last.ckpt`, so loading the outer
+# file by an absolute path is not enough: the inner one is looked up under the
+# source tree. Pointing `experiments` at the read-only mount is what makes both
+# resolve, and it is a link rather than a copy so the 1.6 GiB stays outside the
+# image.
+_experiments = os.path.join(SKINTOKENS, "experiments")
+if not os.path.exists(_experiments) and os.path.isdir(MODELS):
+    os.symlink(MODELS, _experiments)
 
 from transformers import AutoModelForCausalLM  # noqa: E402
 
