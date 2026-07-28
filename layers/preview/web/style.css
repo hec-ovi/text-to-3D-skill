@@ -152,12 +152,17 @@ html, body {
   border: 1px solid var(--line);
   border-radius: var(--r-1);
 }
+/* Two icons, no words. "Gallery" and "Single" beside their own pictograms was
+   the label saying twice what the grid and the frame already say, and it made
+   the widest control in the bar out of the one with the least to communicate.
+   The words survive as the accessible name and the tooltip. */
 .seg button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 30px;
   height: 24px;
-  padding: 0 10px;
+  padding: 0;
   font: inherit;
   font-size: 12px;
   color: var(--text-3);
@@ -327,11 +332,13 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- sidebar ------------------------------------------------------------ */
 
+/* Models, and nothing else. Anything that acts on the one already loaded, the
+   clips included, belongs under the render instead. */
 .sidebar {
   display: grid;
-  /* head, note, list, motion. The note sits under the head rather than under
-     the list, so "No models yet" is not stranded at the bottom of the panel. */
-  grid-template-rows: auto auto 1fr auto;
+  /* head, note, list. The note sits under the head rather than under the list,
+     so "No models yet" is not stranded at the bottom of the panel. */
+  grid-template-rows: auto auto 1fr;
   min-height: 0;
   background: var(--surface);
   border-right: 1px solid var(--line);
@@ -472,27 +479,44 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- motion ------------------------------------------------------------- */
 
-.motion { border-top: 1px solid var(--line); }
-.clip-list { display: grid; padding: 0 0 8px; }
+/* In the viewer's footer, in a row, next to the render controls: a clip is a
+   fact about the loaded asset, the same as auto rotate is. It was a stacked
+   panel in the sidebar, which put it among the models and made "walk" look
+   like something you pick instead of a model rather than for one. */
+.motion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.clip-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.clip-list::-webkit-scrollbar { display: none; }
 .clip {
-  padding: 6px 12px;
+  height: 26px;
+  padding: 0 10px;
   font: inherit;
   font-size: 12px;
-  text-align: left;
   text-transform: capitalize;
+  white-space: nowrap;
   color: var(--text-2);
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: var(--r-1);
   cursor: pointer;
+  transition: background-color 90ms ease, border-color 90ms ease, color 90ms ease;
 }
-.clip { transition: background-color 90ms ease, box-shadow 90ms ease, color 90ms ease; }
-.clip:hover { background: var(--surface-2); color: var(--text); box-shadow: inset 2px 0 0 var(--line-2); }
+.clip:hover { background: var(--surface-3); color: var(--text); border-color: var(--line-2); }
 .clip.selected {
   color: var(--text);
   background: var(--accent-soft);
-  box-shadow: inset 2px 0 0 var(--accent);
+  border-color: var(--accent-line);
 }
 
 #play-pause .i-play { display: none; }
@@ -501,10 +525,29 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- viewer ------------------------------------------------------------- */
 
+/* Name above the render, render, controls below it. The hidden panel is
+   display:none and drops out of the grid, so the visible one always takes the
+   1fr row whichever tab is showing. */
 .viewer {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
 }
+
+.viewer-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+/* An empty strip is worse than no strip: over the source PNG none of these
+   controls mean anything, and with no readable file loaded none of them do
+   anything. */
+#app[data-mode="image"] .viewer-foot,
+#app[data-loaded="false"] .viewer-foot { display: none; }
 
 /* Tabs on the left, the file they are showing on the right. Nothing else: the
    controls that used to share this strip are under the render now, which is
@@ -550,18 +593,15 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .tabs button:disabled { color: #454b54; cursor: default; }
 
-/* Render controls, in the footer directly under the render they act on.
-   They exist only when there is something to control: not on the contact
-   sheet, not over the source PNG, not with an unreadable file selected. Five
-   greyed-out widgets say the page is broken; no widgets say there is nothing
-   to set here yet. */
+/* Render controls, in the viewer's footer directly under the render they act
+   on. The strip around them is what appears and disappears, so they never
+   stand around greyed out on a page with nothing to control. */
 .toolbar {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-#app[data-view="single"][data-mode="model"][data-loaded="true"] .toolbar { display: flex; }
 
 .slider {
   display: inline-flex;
@@ -687,22 +727,19 @@ input[type="range"]:hover::-moz-range-thumb { background: var(--accent); }
 
 /* ---- status bar --------------------------------------------------------- */
 
-/* The footer is now two things: what you can change about the render, and what
-   the render is. It grew from a 28px status line to a 40px bar to hold the
-   controls at the same 26px height they have everywhere else, rather than
-   shrinking them into a strip nobody can hit. */
+/* The page's own line: what the loaded file measures, and what last happened.
+   The controls that briefly lived here are one level in, under the render. */
 .statusbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 40px;
-  padding: 5px 12px;
+  gap: 14px;
+  min-height: 28px;
+  padding: 3px 12px;
   font-size: 11.5px;
   background: var(--surface);
   border-top: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.statusbar .rule { height: 18px; }
 
 dl#stats {
   display: flex;

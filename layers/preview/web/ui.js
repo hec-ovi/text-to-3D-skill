@@ -139,13 +139,19 @@ const ICON = {
 // and the turntable, so the list is on screen whatever you are doing and the
 // two layouts read as one page rather than two.
 //
-// The top bar carries what is true of the whole page and nothing else: where
-// you are, and what you are looking through. It used to also hold the loaded
-// file's name and the render controls, which is why it read as a row of
-// unrelated widgets: three scopes competing for one strip of pixels, and the
-// controls sat there greyed out on the gallery where there is no render to
-// control. The name now sits in the frame it names, and the controls live in
-// the footer under the render, appearing only when there is one.
+// Three scopes, three places, and each one owns a strip of the window.
+//
+//   the page      top bar: which layout, and what you are filtering for
+//   the model     sidebar: every model, and nothing else
+//   the asset     viewer: its name above the render, its controls below it
+//
+// The top bar used to hold all three at once, which is why it read as a row of
+// unrelated widgets. The rule that sorts them: the sidebar answers "which
+// asset", so anything that acts on the one already loaded belongs in the
+// viewer's own footer, under the render it changes. That footer is a strip, not
+// a fixed set of controls: an asset with animation puts its clips there too,
+// beside the render controls, because clips are a fact about the loaded file
+// and not about the list.
 //
 // The list is the only `listbox` on the page. Sheet tiles are plain buttons
 // carrying `aria-current`, because a second listbox over the same models would
@@ -157,8 +163,10 @@ const LAYOUT = `
   </button>
 
   <div class="seg" role="group" aria-label="Layout">
-    <button id="view-gallery" type="button" aria-pressed="true">${ICON.grid}Gallery</button>
-    <button id="view-single" type="button" aria-pressed="false">${ICON.frame}Single</button>
+    <button id="view-gallery" type="button" aria-pressed="true"
+            aria-label="Gallery" title="Gallery">${ICON.grid}</button>
+    <button id="view-single" type="button" aria-pressed="false"
+            aria-label="Single" title="Single">${ICON.frame}</button>
   </div>
 
   <span class="spacer"></span>
@@ -178,16 +186,6 @@ const LAYOUT = `
     </div>
     <p class="note" id="sidebar-note" hidden></p>
     <div class="model-list" id="model-list" role="listbox" aria-label="Models"></div>
-
-    <section class="motion" id="motion" hidden>
-      <div class="pane-head">
-        <h2>Motion</h2>
-        <button id="play-pause" class="btn btn-quiet" type="button" aria-pressed="true">
-          ${ICON.pause}${ICON.play}<span class="play-label">Pause</span>
-        </button>
-      </div>
-      <div class="clip-list" id="clip-list" role="radiogroup" aria-label="Clips"></div>
-    </section>
   </aside>
 
   <main class="main">
@@ -213,25 +211,34 @@ const LAYOUT = `
         <img id="source-image" alt="" hidden>
         <p class="note" id="source-note">No source image next to this model.</p>
       </div>
+
+      <div class="viewer-foot">
+        <div class="toolbar" id="render-controls" role="group" aria-label="Render controls">
+          <label class="toggle"><input id="autorotate" type="checkbox" checked><span>Auto rotate</span></label>
+          <span class="slider">
+            <span class="cap">Speed</span>
+            <input id="speed" type="range" min="0" max="6" step="0.2" value="0.6" aria-label="Rotation speed">
+          </span>
+          <span class="rule"></span>
+          <label class="toggle"><input id="wireframe" type="checkbox"><span>Wireframe</span></label>
+          <label class="toggle"><input id="grid" type="checkbox"><span>Grid</span></label>
+          <label class="toggle"><input id="quality" type="checkbox" checked><span>Quality</span></label>
+          <button id="reset-view" class="btn" type="button">${ICON.recenter}Reset view</button>
+        </div>
+
+        <section class="motion" id="motion" hidden>
+          <span class="rule"></span>
+          <button id="play-pause" class="btn" type="button" aria-pressed="true">
+            ${ICON.pause}${ICON.play}<span class="play-label">Pause</span>
+          </button>
+          <div class="clip-list" id="clip-list" role="radiogroup" aria-label="Clips"></div>
+        </section>
+      </div>
     </section>
   </main>
 </div>
 
 <footer class="statusbar">
-  <div class="toolbar" id="render-controls" role="group" aria-label="Render controls">
-    <label class="toggle"><input id="autorotate" type="checkbox" checked><span>Auto rotate</span></label>
-    <span class="slider">
-      <span class="cap">Speed</span>
-      <input id="speed" type="range" min="0" max="6" step="0.2" value="0.6" aria-label="Rotation speed">
-    </span>
-    <span class="rule"></span>
-    <label class="toggle"><input id="wireframe" type="checkbox"><span>Wireframe</span></label>
-    <label class="toggle"><input id="grid" type="checkbox"><span>Grid</span></label>
-    <label class="toggle"><input id="quality" type="checkbox" checked><span>Quality</span></label>
-    <button id="reset-view" class="btn" type="button">${ICON.recenter}Reset view</button>
-    <span class="rule"></span>
-  </div>
-
   <dl id="stats"></dl>
   <span class="spacer"></span>
   <output id="status" role="status">Loading…</output>

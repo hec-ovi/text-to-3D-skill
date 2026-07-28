@@ -383,6 +383,18 @@ describe('motion', () => {
     joints: 19,
   })
 
+  test('the clips are under the render, not among the models', async () => {
+    serveModels([RIGGED])
+    const ui = mount()
+    await ui.refresh()
+
+    // The sidebar answers "which asset". A clip is a fact about the one that is
+    // already loaded, so it belongs in the viewer's footer beside auto rotate.
+    expect(document.querySelector('.viewer .viewer-foot #motion')).toBeTruthy()
+    expect(document.querySelector('.sidebar #motion')).toBe(null)
+    expect(document.querySelector('.viewer-foot #clip-list')).toBeTruthy()
+  })
+
   test('a rigged model lists its clips and starts on the first', async () => {
     serveModels([RIGGED])
     const onClipChange = vi.fn()
@@ -461,14 +473,14 @@ describe('render controls', () => {
   // loads no stylesheet, so the attributes are what a test can assert.
   const app = () => document.getElementById('app')
 
-  test('they sit in the footer, under the render, not in the top bar', async () => {
+  test('they sit in the viewer footer, under the render they act on', async () => {
     serveModels([BELL])
     const ui = mount()
     await ui.refresh()
 
-    expect(document.querySelector('.statusbar #render-controls')).toBeTruthy()
+    expect(document.querySelector('.viewer .viewer-foot #render-controls')).toBeTruthy()
     expect(document.querySelector('.topbar #render-controls')).toBe(null)
-    expect(document.querySelector('.viewer-bar #render-controls')).toBe(null)
+    expect(document.querySelector('.statusbar #render-controls')).toBe(null)
     // The file name moved the other way: into the frame it names.
     expect(document.querySelector('.viewer-bar #current-name')).toBeTruthy()
     expect(document.querySelector('.topbar #current-name')).toBe(null)

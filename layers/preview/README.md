@@ -8,13 +8,15 @@ python3 src/serve.py --dir ../../out --open
 
 The model list is down the left and stays there. Only the middle pane changes. The page opens on **Gallery**, a contact sheet where every card is that GLB actually rendered, at 512px, by the same studio the turntable uses. **Single** swaps the sheet for the turntable, with the source image behind a second tab, because seeing both is the only way to tell a bad reconstruction from a bad prompt. Picking a model anywhere opens it on the turntable, and the wordmark in the top bar goes back to the sheet. Cards carry the triangle count, the size and the age either way; filter by name, or walk the list with the arrow keys.
 
-The top bar carries only what is true of the whole page: where you are, and what you are filtering for. The file on the turntable is named in the viewer's own bar, beside the Model and Image tabs. Render controls (auto rotate and its speed, wireframe, grid, quality, reset view) are in the footer directly under the render, next to its numbers and whatever the loader last said. They appear when there is a render to control and are absent otherwise: not on the gallery, not over the source PNG, not with an unreadable file selected.
+Three scopes, three strips. The top bar is the page: which layout, and what you are filtering for. The sidebar is the models, and only the models. The viewer owns the asset: its name above the render, its controls below it.
+
+That last strip is the rule worth keeping. The sidebar answers "which asset", so anything acting on the one already loaded goes in the viewer's footer, under the render it changes: auto rotate and its speed, wireframe, grid, quality, reset view, and the clips of an animated GLB beside them. The whole strip is gone when there is nothing to control, so no control is ever on screen greyed out.
 
 Cards are titled by subject, not by file name: `red-sports-car-3f2a9c1b-r512.glb` reads as **Red Sports Car**, with resolution and other legacy suffixes kept as tags. The full name is on hover and spelled out in the top bar. Assets generated before `text2image` put the subject in the name are all digest, and keep their file name rather than showing a blank card.
 
 The card art is the GLB, not the PNG it was reconstructed from. Using the source image was tempting and dishonest: it is what FLUX drew, and a grid of those flatters a reconstruction that may have thrown half of it away. The source image is the fallback, for a model whose render fails or a page with no WebGL.
 
-A GLB imported from elsewhere gets a Motion panel when it already contains animation clips. The text-to-3D pipeline itself produces static GLBs.
+A GLB imported from elsewhere gets its clips in the viewer footer when it already contains animation. The text-to-3D pipeline itself produces static GLBs.
 
 The sidebar list is the page's one `listbox`, and its rows are the only `option`s. Sheet tiles are plain buttons carrying `aria-current`: two listboxes over the same models would be two selections for a screen reader to reconcile. Tiles look identical at rest, including the one that is loaded, and light up with an accent bar under the pointer; the sidebar row is where you read which model the turntable has.
 
@@ -36,7 +38,7 @@ Every model has a stable id, so `?id=hero-r512` deep links one, and `GET /api/mo
 ## Things that will bite you
 
 - **Keep `ui.js` free of three.js.** The split is what lets the interface be tested without a GPU. Importing `three` there would drag WebGL into jsdom and the suite would die.
-- The layout swap is CSS, off `#app[data-view]`. The footer controls are shown by one rule over three attributes, `[data-view="single"][data-mode="model"][data-loaded="true"]`. jsdom loads no stylesheet, so a test cannot see any of that; assert the attribute, not the visibility.
+- The layout swap is CSS, off `#app[data-view]`. The viewer footer is hidden off `[data-mode="image"]` and `[data-loaded="false"]`, so the strip disappears rather than its controls going grey. jsdom loads no stylesheet, so a test cannot see any of that; assert the attribute, not the visibility.
 - The sheet is emptied when it is not showing rather than hidden, so there is never a stale grid holding a second copy of every thumbnail image alive.
 - The speed slider's `value` in `ui.js` is the opening rotation speed. `main.js` reads `ui.rotation` at startup and pushes it into the viewer, so that attribute is the only place it is set.
 - Nothing is downloaded: system fonts, icons written as inline SVG, and the one checkbox tick is a `data:` URI. A CDN font or icon set would break the offline promise the rest of the layer keeps.
